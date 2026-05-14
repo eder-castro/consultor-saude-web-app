@@ -1,26 +1,109 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { AppShell } from "@/components/layout/AppShell";
+import { ChatFeed, type ChatMessage } from "@/components/chat/ChatFeed";
+import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
+import { fileToBase64, processInput } from "@/lib/api";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "Consultor de Saúde — Chat" },
+      {
+        name: "description",
+        content:
+          "Registre alimentação, hidratação, exercícios, sono e peso por chat com validação inteligente.",
+      },
+    ],
+  }),
+  component: ChatPage,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
+const uid = () => Math.random().toString(36).slice(2, 10);
 
-function Index() {
-  return <PlaceholderIndex />;
+function ChatPage() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(s: ComposerSubmit) {
+    setBusy(true);
+    const userMsg: ChatMessage =
+      s.kind === "text"
+        ? { id: uid(), role: "user", kind: "text", text: s.text }
+        : {
+            id: uid(),
+            role: "user",
+            kind: "image",
+            imageUrl: s.previewUrl,
+            caption: s.caption,
+          };
+    const loadingId = uid();
+    setMessages((m) => [
+      ...m,
+      userMsg,
+      { id: loadingId, role: "assistant", kind: "loading" },
+    ]);
+
+    try {
+      const payload =
+        s.kind === "text"
+          ? await processInput({ text: s.text })
+          : await processInput({
+              imageBase64: await fileToBase64(s.file),
+              text: s.caption || undefined,
+            });
+
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === loadingId
+            ? {
+                id: loadingId,
+                role: "assistant",
+                kind: "validation",
+                payload,
+                status: "pending",
+              }
+            : msg,
+        ),
+      );
+    } catch (e) {
+      setMessages((m) =>
+        m.map((msg) =>
+          msg.id === loadingId
+            ? {
+                id: loadingId,
+                role: "assistant",
+                kind: "text",
+                text: "Não consegui analisar agora. Tente novamente.",
+              }
+            : msg,
+        ),
+      );
+      toast.error(e instanceof Error ? e.message : "Erro de processamento.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function resolveValidation(id: string, status: "saved" | "discarded") {
+    setMessages((m) =>
+      m.map((msg) =>
+        msg.id === id && msg.role === "assistant" && msg.kind === "validation"
+          ? { ...msg, status }
+          : msg,
+      ),
+    );
+  }
+
+  return (
+    <AppShell title="Consultor de Saúde">
+      <div className="flex h-full flex-col">
+        <div className="min-h-0 flex-1">
+          <ChatFeed messages={messages} onValidationResolved={resolveValidation} />
+        </div>
+        <Composer disabled={busy} onSubmit={handleSubmit} />
+      </div>
+    </AppShell>
+  );
 }
