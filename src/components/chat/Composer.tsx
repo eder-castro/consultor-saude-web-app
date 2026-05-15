@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Camera, ImageIcon, Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,13 +20,6 @@ export function Composer({
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [text]);
 
   function pickFile(f: File | undefined | null) {
     if (!f) return;
@@ -147,7 +140,7 @@ export function Composer({
               : "Ex: Tomei 500ml de água, dormi 7h, comi..."
           }
           rows={2}
-          className="max-h-40 min-h-[3.75rem] flex-1 resize-none bg-background"
+          className="h-[3.75rem] max-h-[3.75rem] min-h-[3.75rem] flex-1 resize-none overflow-y-auto bg-background"
         />
 
         <Button
