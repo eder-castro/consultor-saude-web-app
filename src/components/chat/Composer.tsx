@@ -132,6 +132,7 @@ export function Composer({
         </Popover>
 
         <Textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
