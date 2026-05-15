@@ -137,8 +137,8 @@ export function Composer({
               ? "Legenda (opcional)..."
               : "Ex: Tomei 500ml de água, dormi 7h, comi..."
           }
-          rows={1}
-          className="max-h-32 min-h-11 flex-1 resize-none bg-background"
+          rows={2}
+          className="max-h-40 min-h-[3.75rem] flex-1 resize-none bg-background"
         />
 
         <Button
