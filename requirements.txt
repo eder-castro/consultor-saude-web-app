@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+google-generativeai
+gspread
+google-auth
+pandas
+fastapi
+google-auth
+google-generativeai
+gspread
+pandas
+pydantic
+uvicorn[standard]
