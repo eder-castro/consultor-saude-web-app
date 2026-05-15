@@ -70,7 +70,7 @@ export function Composer({
 
       <div className="flex items-end gap-2">
         <input
-          ref={fileRef}
+          ref={cameraRef}
           type="file"
           accept="image/*"
           capture="environment"
@@ -80,16 +80,47 @@ export function Composer({
             e.target.value = "";
           }}
         />
-        <Button
-          size="icon"
-          variant="outline"
-          className="size-11 shrink-0 rounded-full"
-          onClick={() => fileRef.current?.click()}
-          disabled={disabled}
-          aria-label="Anexar foto"
-        >
-          <Camera className="size-5" />
-        </Button>
+        <input
+          ref={galleryRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            pickFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              size="icon"
+              variant="outline"
+              className="size-11 shrink-0 rounded-full"
+              disabled={disabled}
+              aria-label="Anexar foto"
+            >
+              <Plus className="size-5" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-48 p-1">
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => cameraRef.current?.click()}
+            >
+              <Camera className="size-4" />
+              Câmera
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start"
+              onClick={() => galleryRef.current?.click()}
+            >
+              <ImageIcon className="size-4" />
+              Galeria
+            </Button>
+          </PopoverContent>
+        </Popover>
 
         <Textarea
           value={text}
