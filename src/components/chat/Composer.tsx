@@ -19,6 +19,14 @@ export function Composer({
   const [pendingFile, setPendingFile] = useState<{ file: File; url: string } | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text]);
 
   function pickFile(f: File | undefined | null) {
     if (!f) return;
