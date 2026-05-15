@@ -143,4 +143,26 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
+
+  body {
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 90% 100%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 60%);
+    background-attachment: fixed;
+  }
+}
+
+@utility glow-primary {
+  box-shadow: var(--shadow-glow-primary);
+}
+@utility glow-accent {
+  box-shadow: var(--shadow-glow-accent);
+}
+@utility glow-teal {
+  box-shadow: var(--shadow-glow-teal);
+}
+@utility surface-panel {
+  background-image: var(--gradient-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-elegant);
 }
