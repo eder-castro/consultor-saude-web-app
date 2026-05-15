@@ -17,11 +17,13 @@ export function Composer({
 }) {
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<{ file: File; url: string } | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   function pickFile(f: File | undefined | null) {
+    setMenuOpen(false);
     if (!f) return;
     setPendingFile({ file: f, url: URL.createObjectURL(f) });
   }
@@ -92,7 +94,7 @@ export function Composer({
             e.target.value = "";
           }}
         />
-        <Popover>
+        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
           <PopoverTrigger asChild>
             <Button
               size="icon"
