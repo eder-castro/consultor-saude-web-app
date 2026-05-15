@@ -17,7 +17,8 @@ export function Composer({
 }) {
   const [text, setText] = useState("");
   const [pendingFile, setPendingFile] = useState<{ file: File; url: string } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   function pickFile(f: File | undefined | null) {
     if (!f) return;
