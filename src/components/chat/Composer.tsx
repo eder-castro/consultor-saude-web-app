@@ -140,7 +140,7 @@ export function Composer({
               : "Ex: Tomei 500ml de água, dormi 7h, comi..."
           }
           rows={2}
-          className="max-h-40 min-h-[3.75rem] flex-1 resize-none bg-background"
+          className="h-[3.75rem] max-h-[3.75rem] min-h-[3.75rem] flex-1 resize-none overflow-y-auto bg-background"
         />
 
         <Button
