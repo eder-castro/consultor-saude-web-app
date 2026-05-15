@@ -17,6 +17,9 @@ export default defineConfig({
       host: "0.0.0.0",
       port: 5000,
       allowedHosts: true,
+      watch: {
+        ignored: ["**/.pythonlibs/**", "**/node_modules/**"],
+      },
     },
   },
 });
