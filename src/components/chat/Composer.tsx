@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Camera, ImageIcon, Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +19,14 @@ export function Composer({
   const [pendingFile, setPendingFile] = useState<{ file: File; url: string } | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [text]);
 
   function pickFile(f: File | undefined | null) {
     if (!f) return;
@@ -124,6 +132,7 @@ export function Composer({
         </Popover>
 
         <Textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -137,8 +146,8 @@ export function Composer({
               ? "Legenda (opcional)..."
               : "Ex: Tomei 500ml de água, dormi 7h, comi..."
           }
-          rows={1}
-          className="max-h-32 min-h-11 flex-1 resize-none bg-background"
+          rows={2}
+          className="max-h-40 min-h-[3.75rem] flex-1 resize-none bg-background"
         />
 
         <Button
