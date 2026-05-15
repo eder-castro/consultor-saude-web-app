@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import { Camera, Send, X } from "lucide-react";
+import { Camera, ImageIcon, Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export type ComposerSubmit =
   | { kind: "text"; text: string }
