@@ -1,11 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatFeed, type ChatMessage } from "@/components/chat/ChatFeed";
 import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
 import { fileToBase64, processInput } from "@/lib/api";
 import { toast } from "sonner";
-import { Sun, CloudSun, Moon } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
