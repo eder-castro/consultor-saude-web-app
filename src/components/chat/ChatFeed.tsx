@@ -24,22 +24,52 @@ export function ChatFeed({
   onValidationResolved: (id: string, status: "saved" | "discarded") => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   return (
-    <div className="h-full overflow-y-auto px-4 py-4">
-      <div className="mx-auto flex max-w-2xl flex-col gap-3">
-        {messages.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            Comece registrando algo: digite o que comeu/bebeu ou envie uma foto da refeição.
-          </div>
-        )}
+    <div className="h-full w-full overflow-y-auto px-4 py-4">
+      <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-end gap-3">
+        
+        {/* Saudação limpa e fixa no topo do histórico */}
+        <div className="pb-2">
+          <GreetingHeader />
+        </div>
+
+        {/* As mensagens do chat entram aqui embaixo */}
         {messages.map((m) => (
           <Bubble key={m.id} m={m} onResolved={(s) => onValidationResolved(m.id, s)} />
         ))}
+        
         <div ref={bottomRef} />
+      </div>
+    </div>
+  );
+}
+
+function GreetingHeader() {
+  const hour = new Date().getHours();
+  const greeting =
+    hour >= 5 && hour < 12
+      ? "Bom dia"
+      : hour >= 12 && hour < 18
+        ? "Boa tarde"
+        : "Boa noite";
+
+  return (
+    <div className="space-y-2">
+      <h2 className="text-lg font-semibold tracking-tight">{greeting}</h2>
+      <div className="text-sm leading-relaxed text-muted-foreground">
+        <p>Faça um registro:</p>
+        <ul className="mt-1 list-disc space-y-1 pl-5">
+          <li>Enviando uma foto de uma refeição</li>
+          <li>Enviando um print de aplicativo (Sono / Atividade Física)</li>
+          <li>Conversando naturally pelo chat</li>
+        </ul>
       </div>
     </div>
   );

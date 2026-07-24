@@ -98,39 +98,15 @@ function ChatPage() {
 
   return (
     <AppShell title="Consultor de Saúde">
-      <div className="flex h-full flex-col">
-        <div className="min-h-0 flex-1">
-          <GreetingHeader />
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        {/* O ChatFeed ocupa todo o espaço vertical disponível */}
+        <div className="min-h-0 flex-1 overflow-hidden">
           <ChatFeed messages={messages} onValidationResolved={resolveValidation} />
         </div>
+        
+        {/* O Composer fica preso na parte inferior sem empurrar a tela */}
         <Composer disabled={busy} onSubmit={handleSubmit} />
       </div>
     </AppShell>
-  );
-}
-
-function GreetingHeader() {
-  const hour = new Date().getHours();
-  const greeting =
-    hour >= 5 && hour < 12
-      ? "Bom dia"
-      : hour >= 12 && hour < 18
-        ? "Boa tarde"
-        : "Boa noite";
-
-  return (
-    <div className="mx-auto w-full max-w-2xl px-4 pt-4">
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold tracking-tight">{greeting}</h2>
-        <div className="text-sm leading-relaxed text-muted-foreground">
-          <p>Faça um registro:</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            <li>Enviando uma foto de uma refeição</li>
-            <li>Enviando um print de aplicativo (Sono / Atividade Física)</li>
-            <li>Conversando naturalmente pelo chat</li>
-          </ul>
-        </div>
-      </div>
-    </div>
   );
 }
