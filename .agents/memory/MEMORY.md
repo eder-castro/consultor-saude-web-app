@@ -1,0 +1,1 @@
+- [Python connector bridge](python-connector-bridge.md) — Python connector package is unavailable here; keep OAuth handling in the official JavaScript SDK bridge.
