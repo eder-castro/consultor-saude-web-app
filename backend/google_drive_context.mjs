@@ -2,9 +2,11 @@ import { ReplitConnectors } from "@replit/connectors-sdk";
 
 const CONNECTOR_NAME = "google-drive";
 const FOLDER_NAME = "Gemini Gems";
+const SPREADSHEET_NAME = "DadosSaude";
 const FILE_NAMES = new Set(["CONTEXTO_SAUDE_RECENTE.txt", "CONTEXTO_SAÚDE_RECENTE.txt"]);
 const GOOGLE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const GOOGLE_DOCUMENT_MIME_TYPE = "application/vnd.google-apps.document";
+const GOOGLE_SPREADSHEET_MIME_TYPE = "application/vnd.google-apps.spreadsheet";
 
 class ContextFileError extends Error {
   constructor(code, message) {
@@ -113,6 +115,30 @@ async function findContextFile(connectors) {
   return matches[0];
 }
 
+async function findSpreadsheet(connectors) {
+  const escapedName = escapeDriveQueryValue(SPREADSHEET_NAME);
+  const matches = await listFiles(
+    connectors,
+    `name = '${escapedName}' and mimeType = '${GOOGLE_SPREADSHEET_MIME_TYPE}' and trashed = false`,
+  );
+
+  if (matches.length === 0) {
+    throw new ContextFileError(
+      "spreadsheet_not_found",
+      `A planilha "${SPREADSHEET_NAME}" não foi encontrada no Google Drive.`,
+    );
+  }
+
+  if (matches.length > 1) {
+    throw new ContextFileError(
+      "multiple_spreadsheets",
+      `Foram encontradas ${matches.length} planilhas chamadas "${SPREADSHEET_NAME}". Mantenha apenas uma.`,
+    );
+  }
+
+  return matches[0];
+}
+
 async function downloadContext(connectors, file) {
   const encodedFileId = encodeURIComponent(file.id);
 
@@ -133,8 +159,124 @@ async function downloadContext(connectors, file) {
   return response.text();
 }
 
+async function downloadSpreadsheet(connectors, file) {
+  const encodedFileId = encodeURIComponent(file.id);
+  const params = new URLSearchParams({ mimeType: "text/csv" });
+  const response = await driveRequest(
+    connectors,
+    `/drive/v3/files/${encodedFileId}/export?${params.toString()}`,
+  );
+  return response.text();
+}
+
+function parseCsv(csvText) {
+  const rows = [];
+  let fields = [];
+  let field = "";
+  let quoted = false;
+  let rowNumber = 1;
+
+  const finishRow = () => {
+    fields.push(field);
+    rows.push({ rowNumber, values: fields });
+    fields = [];
+    field = "";
+    rowNumber += 1;
+  };
+
+  for (let index = 0; index < csvText.length; index += 1) {
+    const character = csvText[index];
+
+    if (quoted) {
+      if (character === '"') {
+        if (csvText[index + 1] === '"') {
+          field += '"';
+          index += 1;
+        } else {
+          quoted = false;
+        }
+      } else {
+        field += character;
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      quoted = true;
+    } else if (character === ",") {
+      fields.push(field);
+      field = "";
+    } else if (character === "\r") {
+      if (csvText[index + 1] === "\n") index += 1;
+      finishRow();
+    } else if (character === "\n") {
+      finishRow();
+    } else {
+      field += character;
+    }
+  }
+
+  if (quoted) {
+    throw new ContextFileError(
+      "invalid_spreadsheet",
+      "A exportação CSV da planilha contém aspas sem fechamento.",
+    );
+  }
+
+  if (field !== "" || fields.length > 0 || rows.length === 0) {
+    finishRow();
+  }
+
+  return rows;
+}
+
+function normalizeHeader(value) {
+  return String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .toLowerCase();
+}
+
+async function readSpreadsheet(connectors) {
+  const file = await findSpreadsheet(connectors);
+  const csv = await downloadSpreadsheet(connectors, file);
+  const parsedRows = parseCsv(csv);
+  const expectedHeaders = ["data", "horario", "item", "quantidade", "midia_id", "json_filename"];
+  const headers = (parsedRows.shift()?.values ?? []).map(normalizeHeader);
+
+  if (
+    headers.length !== expectedHeaders.length ||
+    headers.some((header, index) => header !== expectedHeaders[index])
+  ) {
+    throw new ContextFileError(
+      "invalid_spreadsheet",
+      `A planilha "${SPREADSHEET_NAME}" precisa ter as colunas: ${expectedHeaders.join(", ")}.`,
+    );
+  }
+
+  return {
+    ok: true,
+    source: {
+      id: file.id,
+      name: file.name,
+      mimeType: file.mimeType,
+      modifiedTime: file.modifiedTime,
+      webViewLink: file.webViewLink,
+    },
+    headers,
+    rows: parsedRows.map((row) => ({
+      row_number: row.rowNumber,
+      values: row.values,
+    })),
+  };
+}
+
 async function main() {
   const connectors = new ReplitConnectors();
+  const action = process.argv[2];
+
+  if (action === "sheet") return readSpreadsheet(connectors);
+
   const file = await findContextFile(connectors);
   const context = await downloadContext(connectors, file);
 

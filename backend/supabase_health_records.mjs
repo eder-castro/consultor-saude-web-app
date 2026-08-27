@@ -1,10 +1,13 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { ReplitConnectors } from "@replit/connectors-sdk";
 
 const CONNECTOR_NAME = "supabase";
 const ALIMENTACAO_TABLE = "alimentacao";
 const TIME_ZONE = "America/Sao_Paulo";
 const EVENT_TYPES = new Set(["alimentacao", "hidratacao", "exercicio", "sono", "peso", "outro"]);
+const SHEET_HEADERS = ["data", "horario", "item", "quantidade", "midia_id", "json_filename"];
+const SHEET_TIME_LABELS = new Set(["almoco", "manha", "madrugada", "noite", "tarde"]);
+const SYNC_BATCH_SIZE = 100;
 
 class SupabaseRecordsError extends Error {
   constructor(code, message, status = 502) {
@@ -205,6 +208,242 @@ async function saveRecords(connectors) {
   return { ok: true, saved: entries.length };
 }
 
+function normalizeSheetDate(value) {
+  const date = String(value ?? "").trim();
+  const match = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== Number(match[1]) ||
+    parsed.getUTCMonth() + 1 !== Number(match[2]) ||
+    parsed.getUTCDate() !== Number(match[3])
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function normalizeSheetTime(value) {
+  const time = String(value ?? "").trim();
+  if (!time) return null;
+
+  const match = time.match(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+  if (!match) {
+    const normalizedLabel = time
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase();
+    return SHEET_TIME_LABELS.has(normalizedLabel) ? time : null;
+  }
+  return `${match[1]}:${match[2]}:${match[3] ?? "00"}`;
+}
+
+function normalizeSheetRow(row, sourceId) {
+  const rowNumber = Number(row?.row_number);
+  const values = Array.isArray(row?.values) ? row.values : [];
+
+  if (!Number.isInteger(rowNumber) || rowNumber < 2) {
+    return { invalid: true, rowNumber: null, reason: "Número de linha inválido." };
+  }
+
+  if (values.every((value) => String(value ?? "").trim() === "")) {
+    return { empty: true, rowNumber };
+  }
+
+  if (values.length !== SHEET_HEADERS.length) {
+    return {
+      invalid: true,
+      rowNumber,
+      reason: `A linha precisa ter exatamente ${SHEET_HEADERS.length} colunas.`,
+    };
+  }
+
+  const [rawDate, rawTime, rawItem, rawQuantity, rawMediaId, rawJsonFilename] = values;
+  const data = normalizeSheetDate(rawDate);
+  const horario = normalizeSheetTime(rawTime);
+  const item = String(rawItem ?? "").trim();
+
+  if (!data || !horario || !item) {
+    return {
+      invalid: true,
+      rowNumber,
+      reason: "Data, horário e item são obrigatórios e devem estar em formato válido.",
+    };
+  }
+
+  return {
+    rowNumber,
+    record: {
+      data,
+      horario,
+      item,
+      quantidade: normalizeNullable(rawQuantity),
+      midia_id: normalizeNullable(rawMediaId),
+      json_filename: normalizeNullable(rawJsonFilename),
+      evento_tipo: "alimentacao",
+      source_file_id: sourceId,
+    },
+  };
+}
+
+function recordFingerprint(record) {
+  const normalizedTime = normalizeSheetTime(record.horario) ?? String(record.horario ?? "").trim();
+  const canonical = [
+    String(record.data ?? "").trim(),
+    normalizedTime,
+    String(record.item ?? "").trim(),
+    normalizeNullable(record.quantidade),
+    normalizeNullable(record.midia_id),
+    normalizeNullable(record.json_filename),
+  ];
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
+function stableImportKey(sourceId, fingerprint, occurrence) {
+  const sourceHash = createHash("sha256").update(sourceId).digest("hex");
+  return `dadossaude:v2:${sourceHash}:${fingerprint}:${occurrence}`;
+}
+
+async function existingSourceRecords(connectors, sourceId) {
+  const records = [];
+  let offset = 0;
+
+  while (true) {
+    const params = new URLSearchParams({
+      select: "import_key,data,horario,item,quantidade,midia_id,json_filename",
+      source_file_id: `eq.${sourceId}`,
+      order: "id.asc",
+      offset: String(offset),
+      limit: "1000",
+    });
+    const response = await supabaseRequest(
+      connectors,
+      `/rest/v1/${ALIMENTACAO_TABLE}?${params.toString()}`,
+    );
+    const page = await response.json();
+    records.push(...page);
+
+    if (page.length < 1000) break;
+    offset += page.length;
+  }
+
+  return records;
+}
+
+async function insertSyncBatch(connectors, records) {
+  const params = new URLSearchParams({ on_conflict: "import_key" });
+  const response = await supabaseRequest(
+    connectors,
+    `/rest/v1/${ALIMENTACAO_TABLE}?${params.toString()}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "resolution=ignore-duplicates,return=representation",
+      },
+      body: JSON.stringify(records),
+    },
+  );
+  const inserted = await response.json();
+  return Array.isArray(inserted) ? inserted.length : records.length;
+}
+
+async function syncSpreadsheet(connectors) {
+  const payload = await readJsonInput();
+  const headers = Array.isArray(payload.headers) ? payload.headers : [];
+  const sourceId = payload.source?.id;
+  const rows = Array.isArray(payload.rows) ? payload.rows : [];
+
+  if (
+    !sourceId ||
+    headers.length !== SHEET_HEADERS.length ||
+    headers.some((header, index) => header !== SHEET_HEADERS[index])
+  ) {
+    throw new SupabaseRecordsError(
+      "invalid_spreadsheet",
+      "A planilha DadosSaude não possui o formato esperado.",
+      422,
+    );
+  }
+
+  const normalized = rows.map((row) => normalizeSheetRow(row, sourceId));
+  const invalidRows = normalized.filter((row) => row.invalid);
+  const validRecords = normalized.filter((row) => row.record).map((row) => row.record);
+  const emptyRows = normalized.filter((row) => row.empty).length;
+  const existingRecords = await existingSourceRecords(connectors, sourceId);
+  const availableFingerprints = new Map();
+
+  for (const record of existingRecords) {
+    const fingerprint = recordFingerprint(record);
+    availableFingerprints.set(fingerprint, (availableFingerprints.get(fingerprint) ?? 0) + 1);
+  }
+
+  const occurrences = new Map();
+  const newRecords = [];
+  let ignoredRows = 0;
+
+  for (const record of validRecords) {
+    const fingerprint = recordFingerprint(record);
+    const occurrence = (occurrences.get(fingerprint) ?? 0) + 1;
+    occurrences.set(fingerprint, occurrence);
+
+    const available = availableFingerprints.get(fingerprint) ?? 0;
+    if (available > 0) {
+      availableFingerprints.set(fingerprint, available - 1);
+      ignoredRows += 1;
+      continue;
+    }
+
+    newRecords.push({
+      ...record,
+      import_key: stableImportKey(sourceId, fingerprint, occurrence),
+    });
+  }
+
+  let insertedRows = 0;
+  try {
+    for (let index = 0; index < newRecords.length; index += SYNC_BATCH_SIZE) {
+      insertedRows += await insertSyncBatch(
+        connectors,
+        newRecords.slice(index, index + SYNC_BATCH_SIZE),
+      );
+    }
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : "Falha desconhecida durante a inserção.";
+    throw new SupabaseRecordsError(
+      "partial_sync",
+      `Sincronização interrompida após ${insertedRows} novas linhas. Tente novamente para retomar com segurança. ${detail}`,
+      error instanceof SupabaseRecordsError ? error.status : 502,
+    );
+  }
+
+  ignoredRows += newRecords.length - insertedRows;
+
+  const counts = {
+    total_rows: rows.length - emptyRows,
+    new_rows: insertedRows,
+    ignored_rows: ignoredRows,
+    invalid_rows: invalidRows.length,
+  };
+
+  return {
+    ok: true,
+    source: payload.source,
+    ...counts,
+    new: counts.new_rows,
+    ignored: counts.ignored_rows,
+    invalid: counts.invalid_rows,
+    invalid_details: invalidRows.slice(0, 50).map((row) => ({
+      row_number: row.rowNumber,
+      reason: row.reason,
+    })),
+  };
+}
+
 function parseMetric(value, units) {
   const match = String(value ?? "").match(/(\d+(?:[.,]\d+)?)\s*([a-zçã]+)/i);
   if (!match) return null;
@@ -341,6 +580,7 @@ async function main() {
   const action = process.argv[2];
 
   if (action === "save") return saveRecords(connectors);
+  if (action === "sync") return syncSpreadsheet(connectors);
   if (action === "summary") return dailySummary(connectors, process.argv[3]);
 
   throw new SupabaseRecordsError("unknown_action", "Ação do Supabase não reconhecida.", 400);

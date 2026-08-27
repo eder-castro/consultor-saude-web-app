@@ -1,4 +1,5 @@
 import { inflateRawSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { ReplitConnectors } from "@replit/connectors-sdk";
 
 const DRIVE_CONNECTOR = "google-drive";
@@ -8,6 +9,7 @@ const SPREADSHEET_NAME = "DadosSaude";
 const SPREADSHEET_MIME_TYPE = "application/vnd.google-apps.spreadsheet";
 const FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const BATCH_SIZE = 200;
+const TIME_HEADERS = new Set(["horario", "inicio", "fim", "hora"]);
 const SHEET_SCHEMAS = {
   alimentacao: {
     headers: ["data", "horario", "item", "quantidade", "midia_id", "json_filename"],
@@ -293,6 +295,26 @@ function normalizeCell(header, value) {
   return text;
 }
 
+function canonicalValue(header, value) {
+  if (value === undefined || value === null || value === "") return null;
+  const text = String(value).trim();
+  if (TIME_HEADERS.has(header)) {
+    const match = text.match(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+    if (match) return `${match[1]}:${match[2]}:${match[3] ?? "00"}`;
+  }
+  return text;
+}
+
+function recordFingerprint(record, headers) {
+  const canonical = headers.map((header) => canonicalValue(header, record[header]));
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
+function stableImportKey(sourceFileId, sheetName, fingerprint, occurrence) {
+  const sourceHash = createHash("sha256").update(`${sourceFileId}:${sheetName}`).digest("hex");
+  return `dadossaude:content:v1:${sheetName}:${sourceHash}:${fingerprint}:${occurrence}`;
+}
+
 function normalizeRows(sheetName, rows, sourceFileId) {
   const schema = SHEET_SCHEMAS[sheetName];
   if (!schema) {
@@ -330,9 +352,7 @@ function normalizeRows(sheetName, rows, sourceFileId) {
       return;
     }
 
-    const keyPrefix = sheetName === "alimentacao" ? "dadossaude" : sheetName;
     records.push({
-      import_key: `${keyPrefix}:${sourceRow}`,
       ...record,
       source_file_id: sourceFileId,
       ...(sheetName === "alimentacao" ? { evento_tipo: "alimentacao" } : {}),
@@ -342,15 +362,15 @@ function normalizeRows(sheetName, rows, sourceFileId) {
   return { records, invalidRows };
 }
 
-async function getExistingKeys(connectors, table, sourceFileId) {
-  const keys = new Set();
+async function getExistingRecords(connectors, table, sourceFileId, headers) {
+  const records = [];
   let offset = 0;
 
   while (true) {
     const params = new URLSearchParams({
-      select: "import_key",
+      select: ["import_key", ...headers].join(","),
       source_file_id: `eq.${sourceFileId}`,
-      order: "import_key.asc",
+      order: "id.asc",
       limit: "1000",
       offset: String(offset),
     });
@@ -360,20 +380,21 @@ async function getExistingKeys(connectors, table, sourceFileId) {
       `/rest/v1/${table}?${params.toString()}`,
     );
     const page = await response.json();
-    page.forEach((record) => keys.add(record.import_key));
+    records.push(...page);
     if (page.length < 1000) break;
     offset += page.length;
   }
 
-  return keys;
+  return records;
 }
 
 async function upsertRecords(connectors, table, records) {
+  let inserted = 0;
   let batches = 0;
 
   for (let start = 0; start < records.length; start += BATCH_SIZE) {
     const batch = records.slice(start, start + BATCH_SIZE);
-    await connectorRequest(
+    const response = await connectorRequest(
       connectors,
       SUPABASE_CONNECTOR,
       `/rest/v1/${table}?on_conflict=import_key`,
@@ -381,20 +402,93 @@ async function upsertRecords(connectors, table, records) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Prefer: "resolution=merge-duplicates,return=minimal",
+          Prefer: "resolution=ignore-duplicates,return=representation",
         },
         body: JSON.stringify(batch),
       },
     );
+    const created = await response.json();
+    inserted += Array.isArray(created) ? created.length : batch.length;
     batches += 1;
   }
 
-  return batches;
+  return { inserted, batches };
+}
+
+async function syncTable(connectors, table, records, invalidRows, sourceFileId) {
+  const schema = SHEET_SCHEMAS[table];
+  const existingRecords = await getExistingRecords(connectors, table, sourceFileId, schema.headers);
+  const availableFingerprints = new Map();
+  existingRecords.forEach((record) => {
+    const fingerprint = recordFingerprint(record, schema.headers);
+    availableFingerprints.set(fingerprint, (availableFingerprints.get(fingerprint) ?? 0) + 1);
+  });
+
+  const occurrences = new Map();
+  const newRecords = [];
+  let ignoredRows = 0;
+  for (const record of records) {
+    const fingerprint = recordFingerprint(record, schema.headers);
+    const occurrence = (occurrences.get(fingerprint) ?? 0) + 1;
+    occurrences.set(fingerprint, occurrence);
+    const available = availableFingerprints.get(fingerprint) ?? 0;
+    if (available > 0) {
+      availableFingerprints.set(fingerprint, available - 1);
+      ignoredRows += 1;
+      continue;
+    }
+    newRecords.push({
+      import_key: stableImportKey(sourceFileId, table, fingerprint, occurrence),
+      ...record,
+    });
+  }
+
+  let insertResult;
+  try {
+    insertResult = await upsertRecords(connectors, table, newRecords);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Falha desconhecida.";
+    throw new HealthSheetSyncError(
+      "partial_sync",
+      `Aba "${table}" interrompida após as inserções anteriores. Tente novamente com segurança. ${detail}`,
+      502,
+    );
+  }
+  ignoredRows += newRecords.length - insertResult.inserted;
+  return {
+    table,
+    total_rows: records.length + invalidRows.length,
+    valid_rows: records.length,
+    new_rows: insertResult.inserted,
+    ignored_rows: ignoredRows,
+    invalid_rows: invalidRows.length,
+    invalid_details: invalidRows,
+    batches: insertResult.batches,
+  };
 }
 
 async function main() {
   const connectors = new ReplitConnectors();
   const spreadsheet = await findSpreadsheet(connectors);
+  const action = process.argv[2] ?? "sync";
+
+  if (action === "metadata") {
+    return {
+      ok: true,
+      source: {
+        id: spreadsheet.id,
+        name: spreadsheet.name,
+        mimeType: spreadsheet.mimeType,
+        modifiedTime: spreadsheet.modifiedTime,
+        webViewLink: spreadsheet.webViewLink,
+      },
+    };
+  }
+
+  if (action !== "sync") {
+    throw new HealthSheetSyncError("unknown_action", "Ação de sincronização não reconhecida.", 400);
+  }
+
   const response = await connectorRequest(
     connectors,
     DRIVE_CONNECTOR,
@@ -414,20 +508,16 @@ async function main() {
     }
 
     const { records, invalidRows } = normalizeRows(table, rows, spreadsheet.id);
-    const existingKeys = await getExistingKeys(connectors, table, spreadsheet.id);
-    const inserted = records.filter((record) => !existingKeys.has(record.import_key)).length;
-    const updated = records.length - inserted;
-    const batches = await upsertRecords(connectors, table, records);
-    tableResults.push({
-      table,
-      total_rows: records.length + invalidRows.length,
-      valid_rows: records.length,
-      inserted,
-      updated,
-      invalid_rows: invalidRows,
-      batches,
-    });
+    tableResults.push(await syncTable(connectors, table, records, invalidRows, spreadsheet.id));
   }
+
+  const totals = {
+    total_rows: tableResults.reduce((total, table) => total + table.total_rows, 0),
+    valid_rows: tableResults.reduce((total, table) => total + table.valid_rows, 0),
+    new_rows: tableResults.reduce((total, table) => total + table.new_rows, 0),
+    ignored_rows: tableResults.reduce((total, table) => total + table.ignored_rows, 0),
+    invalid_rows: tableResults.reduce((total, table) => total + table.invalid_rows, 0),
+  };
 
   return {
     ok: true,
@@ -436,23 +526,29 @@ async function main() {
       name: spreadsheet.name,
       modifiedTime: spreadsheet.modifiedTime,
     },
-    total_rows: tableResults.reduce((total, table) => total + table.total_rows, 0),
-    valid_rows: tableResults.reduce((total, table) => total + table.valid_rows, 0),
-    inserted: tableResults.reduce((total, table) => total + table.inserted, 0),
-    updated: tableResults.reduce((total, table) => total + table.updated, 0),
-    invalid_rows: tableResults.flatMap((table) => table.invalid_rows),
+    ...totals,
+    new: totals.new_rows,
+    ignored: totals.ignored_rows,
+    invalid: totals.invalid_rows,
+    inserted: totals.new_rows,
+    updated: totals.ignored_rows,
+    invalid_details: tableResults.flatMap((table) => table.invalid_details),
     batches: tableResults.reduce((total, table) => total + table.batches, 0),
     tables: tableResults,
   };
 }
 
-try {
-  process.stdout.write(JSON.stringify(await main()));
-} catch (error) {
-  const code = error instanceof HealthSheetSyncError ? error.code : "unexpected_error";
-  const message =
-    error instanceof Error ? error.message : "Falha inesperada ao sincronizar a planilha.";
-  const status = error instanceof HealthSheetSyncError ? error.status : 502;
-  process.stdout.write(JSON.stringify({ ok: false, error: { code, message, status } }));
-  process.exitCode = 1;
+export { SHEET_SCHEMAS, syncTable };
+
+if (import.meta.main) {
+  try {
+    process.stdout.write(JSON.stringify(await main()));
+  } catch (error) {
+    const code = error instanceof HealthSheetSyncError ? error.code : "unexpected_error";
+    const message =
+      error instanceof Error ? error.message : "Falha inesperada ao sincronizar a planilha.";
+    const status = error instanceof HealthSheetSyncError ? error.status : 502;
+    process.stdout.write(JSON.stringify({ ok: false, error: { code, message, status } }));
+    process.exitCode = 1;
+  }
 }
