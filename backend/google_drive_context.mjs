@@ -2,10 +2,7 @@ import { ReplitConnectors } from "@replit/connectors-sdk";
 
 const CONNECTOR_NAME = "google-drive";
 const FOLDER_NAME = "Gemini Gems";
-const FILE_NAMES = new Set([
-  "CONTEXTO_SAUDE_RECENTE.txt",
-  "CONTEXTO_SAÚDE_RECENTE.txt",
-]);
+const FILE_NAMES = new Set(["CONTEXTO_SAUDE_RECENTE.txt", "CONTEXTO_SAÚDE_RECENTE.txt"]);
 const GOOGLE_FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
 const GOOGLE_DOCUMENT_MIME_TYPE = "application/vnd.google-apps.document";
 
@@ -53,10 +50,7 @@ async function listFiles(connectors, query) {
       params.set("pageToken", pageToken);
     }
 
-    const response = await driveRequest(
-      connectors,
-      `/drive/v3/files?${params.toString()}`,
-    );
+    const response = await driveRequest(connectors, `/drive/v3/files?${params.toString()}`);
     const page = await response.json();
 
     if (page.incompleteSearch) {
@@ -160,10 +154,8 @@ async function main() {
 try {
   process.stdout.write(JSON.stringify(await main()));
 } catch (error) {
-  const code =
-    error instanceof ContextFileError ? error.code : "unexpected_error";
-  const message =
-    error instanceof Error ? error.message : "Falha inesperada ao ler o contexto.";
+  const code = error instanceof ContextFileError ? error.code : "unexpected_error";
+  const message = error instanceof Error ? error.message : "Falha inesperada ao ler o contexto.";
 
   process.stdout.write(
     JSON.stringify({

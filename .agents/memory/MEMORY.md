@@ -1,2 +1,3 @@
 - [Python connector bridge](python-connector-bridge.md) — Python connector package is unavailable here; keep OAuth handling in the official JavaScript SDK bridge.
+- [Spreadsheet-to-Supabase imports](spreadsheet-supabase-imports.md) — Treat health-sheet time labels as text; use Drive CSV export and Supabase migrations for reliable imports.
 - [Vite hydration stability](vite-hydration-stability.md) — Ignore Bun cache churn; suppress hydration only on fields mutated by Replit browser tooling.

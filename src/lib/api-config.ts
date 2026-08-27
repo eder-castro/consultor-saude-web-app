@@ -6,9 +6,9 @@ const TOKEN_KEY = "health.api.token";
 export type ApiConfig = { baseUrl: string; token: string };
 
 export function readConfig(): ApiConfig {
-  if (typeof window === "undefined") return { baseUrl: "", token: "" };
+  if (typeof window === "undefined") return { baseUrl: "/api", token: "" };
   return {
-    baseUrl: localStorage.getItem(URL_KEY) ?? "",
+    baseUrl: localStorage.getItem(URL_KEY) ?? "/api",
     token: localStorage.getItem(TOKEN_KEY) ?? "",
   };
 }
