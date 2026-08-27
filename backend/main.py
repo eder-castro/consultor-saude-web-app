@@ -246,6 +246,7 @@ async def save_records(
         payload=body.model_dump(),
     )
 
+@app.post("/sync-health-sheet")
 @app.post("/sync-health-records")
 async def sync_health_records(
     _: Annotated[None, Depends(require_write_access)],

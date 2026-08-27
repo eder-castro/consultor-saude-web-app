@@ -59,3 +59,7 @@ externalPort = 8000
 deploymentTarget = "static"
 build = ["bun", "run", "build"]
 publicDir = "dist"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
