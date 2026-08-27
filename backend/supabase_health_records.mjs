@@ -218,6 +218,16 @@ function parseNumber(value) {
   return match ? Number.parseFloat(match[1].replace(",", ".")) : null;
 }
 
+function parseWaterMl(value) {
+  return (
+    parseMetric(value, (number, unit) => {
+      if (unit.startsWith("l")) return Math.round(number * 1000);
+      if (unit.startsWith("copo")) return Math.round(number * 250);
+      return Math.round(number);
+    }) ?? Math.round(parseNumber(value) ?? 0)
+  );
+}
+
 function parseSleepHours(value) {
   const text = String(value ?? "");
   const number = parseNumber(text);
@@ -236,12 +246,7 @@ function buildDailySummary(data, datasets) {
     const quantity = record.quantidade ?? "N/A";
 
     if (record.evento_tipo === "hidratacao") {
-      waterMl +=
-        parseMetric(quantity, (number, unit) => {
-          if (unit.startsWith("l")) return Math.round(number * 1000);
-          if (unit.startsWith("copo")) return Math.round(number * 250);
-          return Math.round(number);
-        }) ?? 0;
+      waterMl += parseWaterMl(quantity);
     } else if (record.evento_tipo === "exercicio") {
       exercise = `${record.item} (${quantity})`;
     } else if (record.evento_tipo === "sono") {
@@ -256,12 +261,7 @@ function buildDailySummary(data, datasets) {
   }
 
   for (const record of datasets.hidratacao) {
-    waterMl +=
-      parseMetric(record.quantidade, (number, unit) => {
-        if (unit.startsWith("l")) return Math.round(number * 1000);
-        if (unit.startsWith("copo")) return Math.round(number * 250);
-        return Math.round(number);
-      }) ?? 0;
+    waterMl += parseWaterMl(record.quantidade);
   }
 
   for (const record of datasets.exercicios) {
