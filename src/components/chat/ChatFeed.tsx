@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ValidationCard } from "./ValidationCard";
 import type { ValidationPayload } from "@/lib/api-schemas";
@@ -34,7 +34,6 @@ export function ChatFeed({
   return (
     <div className="h-full w-full overflow-y-auto px-4 py-4">
       <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-end gap-3">
-        
         {/* Saudação limpa e fixa no topo do histórico */}
         <div className="pb-2">
           <GreetingHeader />
@@ -44,7 +43,7 @@ export function ChatFeed({
         {messages.map((m) => (
           <Bubble key={m.id} m={m} onResolved={(s) => onValidationResolved(m.id, s)} />
         ))}
-        
+
         <div ref={bottomRef} />
       </div>
     </div>
@@ -52,13 +51,20 @@ export function ChatFeed({
 }
 
 function GreetingHeader() {
-  const hour = new Date().getHours();
-  const greeting =
-    hour >= 5 && hour < 12
-      ? "Bom dia"
-      : hour >= 12 && hour < 18
-        ? "Boa tarde"
-        : "Boa noite";
+  const [greeting, setGreeting] = useState("Olá");
+
+  useEffect(() => {
+    const updateGreeting = () => {
+      const hour = new Date().getHours();
+      setGreeting(
+        hour >= 5 && hour < 12 ? "Bom dia" : hour >= 12 && hour < 18 ? "Boa tarde" : "Boa noite",
+      );
+    };
+
+    updateGreeting();
+    const timer = window.setInterval(updateGreeting, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   return (
     <div className="space-y-2">

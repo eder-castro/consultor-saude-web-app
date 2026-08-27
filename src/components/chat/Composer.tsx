@@ -51,11 +51,7 @@ export function Composer({
     <div className="border-t border-border bg-card/60 p-3 backdrop-blur">
       {pendingFile && (
         <div className="mb-2 flex items-center gap-3 rounded-xl border border-border bg-background p-2">
-          <img
-            src={pendingFile.url}
-            alt="prévia"
-            className="size-14 rounded-lg object-cover"
-          />
+          <img src={pendingFile.url} alt="prévia" className="size-14 rounded-lg object-cover" />
           <p className="flex-1 text-xs text-muted-foreground">
             Foto pronta para envio. Adicione uma legenda opcional.
           </p>
@@ -79,6 +75,7 @@ export function Composer({
           accept="image/*"
           capture="environment"
           className="hidden"
+          suppressHydrationWarning
           onChange={(e) => {
             pickFile(e.target.files?.[0]);
             e.target.value = "";
@@ -89,6 +86,7 @@ export function Composer({
           type="file"
           accept="image/*"
           className="hidden"
+          suppressHydrationWarning
           onChange={(e) => {
             pickFile(e.target.files?.[0]);
             e.target.value = "";
@@ -129,6 +127,7 @@ export function Composer({
         <Textarea
           ref={textareaRef}
           value={text}
+          suppressHydrationWarning
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -137,9 +136,7 @@ export function Composer({
             }
           }}
           placeholder={
-            pendingFile
-              ? "Legenda (opcional)..."
-              : "Ex: Tomei 500ml de água, dormi 7h, comi..."
+            pendingFile ? "Legenda (opcional)..." : "Ex: Tomei 500ml de água, dormi 7h, comi..."
           }
           rows={2}
           className="h-[3.75rem] max-h-[3.75rem] min-h-[3.75rem] flex-1 resize-none overflow-y-auto bg-background"
