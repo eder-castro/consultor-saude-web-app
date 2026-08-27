@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { ReplitConnectors } from "@replit/connectors-sdk";
 
 const CONNECTOR_NAME = "supabase";
-const TABLE_NAME = "health_records";
+const ALIMENTACAO_TABLE = "alimentacao";
 const TIME_ZONE = "America/Sao_Paulo";
 const EVENT_TYPES = new Set(["alimentacao", "hidratacao", "exercicio", "sono", "peso", "outro"]);
 
@@ -62,44 +62,120 @@ function normalizeNullable(value) {
   return String(value);
 }
 
+function normalizeEventRecord(record, eventType, now) {
+  const importKey = record.import_key ?? `app:${randomUUID()}`;
+  const data = record.data ?? now.data;
+  const horario = record.horario ?? now.horario;
+  const item = String(record.item ?? record.tipo ?? "").trim();
+  const quantidade = normalizeNullable(
+    record.quantidade ?? record.quantidade_estimada ?? record.duracao_min,
+  );
+  const sourceFileId = record.source_file_id ?? "app";
+
+  if (eventType === "hidratacao") {
+    return {
+      table: "hidratacao",
+      record: {
+        import_key: importKey,
+        data,
+        horario,
+        item,
+        quantidade,
+        midia_id: normalizeNullable(record.midia_id),
+        json_filename: normalizeNullable(record.json_filename),
+        source_file_id: sourceFileId,
+      },
+    };
+  }
+  if (eventType === "exercicio") {
+    return {
+      table: "exercicios",
+      record: {
+        import_key: importKey,
+        data,
+        tipo: item,
+        duracao_min: quantidade,
+        intensidade: normalizeNullable(record.intensidade),
+        calorias_estimadas: normalizeNullable(record.calorias_estimadas),
+        midia_id: normalizeNullable(record.midia_id),
+        json_filename: normalizeNullable(record.json_filename),
+        source_file_id: sourceFileId,
+      },
+    };
+  }
+  if (eventType === "sono") {
+    return {
+      table: "sono",
+      record: {
+        import_key: importKey,
+        data,
+        inicio: normalizeNullable(record.inicio),
+        fim: normalizeNullable(record.fim),
+        duracao_minutos: quantidade,
+        sono_profundo_min: normalizeNullable(record.sono_profundo_min),
+        sono_leve_min: normalizeNullable(record.sono_leve_min),
+        sono_rem_min: normalizeNullable(record.sono_rem_min),
+        acordado_min: normalizeNullable(record.acordado_min),
+        midia_id: normalizeNullable(record.midia_id),
+        json_filename: normalizeNullable(record.json_filename),
+        source_file_id: sourceFileId,
+      },
+    };
+  }
+  if (eventType === "peso") {
+    return {
+      table: "peso",
+      record: {
+        import_key: importKey,
+        data,
+        horario,
+        valor_kg: quantidade,
+        json_filename: normalizeNullable(record.json_filename),
+        source_file_id: sourceFileId,
+      },
+    };
+  }
+
+  return {
+    table: ALIMENTACAO_TABLE,
+    record: {
+      import_key: importKey,
+      data,
+      horario,
+      item,
+      quantidade,
+      midia_id: normalizeNullable(record.midia_id),
+      json_filename: normalizeNullable(record.json_filename),
+      evento_tipo: eventType,
+      source_file_id: sourceFileId,
+    },
+  };
+}
+
 function normalizeRecords(payload) {
   const now = saoPauloNow();
 
   if (Array.isArray(payload.records) && payload.records.length > 0) {
-    return payload.records.map((record) => ({
-      import_key: record.import_key ?? `app:${randomUUID()}`,
-      data: record.data ?? now.data,
-      horario: record.horario ?? now.horario,
-      item: String(record.item ?? "").trim(),
-      quantidade: normalizeNullable(record.quantidade ?? record.quantidade_estimada),
-      midia_id: normalizeNullable(record.midia_id),
-      json_filename: normalizeNullable(record.json_filename),
-      evento_tipo: EVENT_TYPES.has(record.evento_tipo) ? record.evento_tipo : "outro",
-      source_file_id: record.source_file_id ?? "app",
-    }));
+    return payload.records.map((record) =>
+      normalizeEventRecord(
+        record,
+        EVENT_TYPES.has(record.evento_tipo) ? record.evento_tipo : "outro",
+        now,
+      ),
+    );
   }
 
   const eventType = EVENT_TYPES.has(payload.evento_tipo) ? payload.evento_tipo : "outro";
   return (payload.itens ?? [])
     .filter((item) => item.confirmado !== false)
-    .map((item) => ({
-      import_key: `app:${randomUUID()}`,
-      data: now.data,
-      horario: now.horario,
-      item: String(item.item ?? "").trim(),
-      quantidade: normalizeNullable(item.quantidade_estimada),
-      midia_id: null,
-      json_filename: null,
-      evento_tipo: eventType,
-      source_file_id: "app",
-    }));
+    .map((item) => normalizeEventRecord(item, eventType, now));
 }
 
 async function saveRecords(connectors) {
   const payload = await readJsonInput();
-  const records = normalizeRecords(payload);
+  const entries = normalizeRecords(payload);
 
-  if (records.length === 0 || records.some((record) => !record.item)) {
+  if (entries.length === 0) {
     throw new SupabaseRecordsError(
       "invalid_records",
       "Nenhum registro de saúde válido foi informado.",
@@ -107,16 +183,26 @@ async function saveRecords(connectors) {
     );
   }
 
-  await supabaseRequest(connectors, `/rest/v1/${TABLE_NAME}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Prefer: "return=minimal",
-    },
-    body: JSON.stringify(records),
-  });
+  const groups = new Map();
+  for (const entry of entries) {
+    const group = groups.get(entry.table) ?? [];
+    group.push(entry);
+    groups.set(entry.table, group);
+  }
+  await Promise.all(
+    [...groups.entries()].map(([table, group]) =>
+      supabaseRequest(connectors, `/rest/v1/${table}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify(group.map(({ record }) => record)),
+      }),
+    ),
+  );
 
-  return { ok: true, saved: records.length };
+  return { ok: true, saved: entries.length };
 }
 
 function parseMetric(value, units) {
@@ -127,14 +213,26 @@ function parseMetric(value, units) {
   return units(number, unit);
 }
 
-function buildDailySummary(data, records) {
+function parseNumber(value) {
+  const match = String(value ?? "").match(/(\d+(?:[.,]\d+)?)/);
+  return match ? Number.parseFloat(match[1].replace(",", ".")) : null;
+}
+
+function parseSleepHours(value) {
+  const text = String(value ?? "");
+  const number = parseNumber(text);
+  if (number === null) return null;
+  return /h/i.test(text) ? number : number / 60;
+}
+
+function buildDailySummary(data, datasets) {
   const meals = new Map();
   let waterMl = 0;
   let exercise = null;
   let sleepHours = null;
   let weightKg = null;
 
-  for (const record of records) {
+  for (const record of datasets.alimentacao) {
     const quantity = record.quantidade ?? "N/A";
 
     if (record.evento_tipo === "hidratacao") {
@@ -157,6 +255,30 @@ function buildDailySummary(data, records) {
     }
   }
 
+  for (const record of datasets.hidratacao) {
+    waterMl +=
+      parseMetric(record.quantidade, (number, unit) => {
+        if (unit.startsWith("l")) return Math.round(number * 1000);
+        if (unit.startsWith("copo")) return Math.round(number * 250);
+        return Math.round(number);
+      }) ?? 0;
+  }
+
+  for (const record of datasets.exercicios) {
+    const details = [record.duracao_min ? `${record.duracao_min} min` : null, record.intensidade]
+      .filter(Boolean)
+      .join(", ");
+    exercise = details ? `${record.tipo} (${details})` : record.tipo;
+  }
+
+  for (const record of datasets.sono) {
+    sleepHours = parseSleepHours(record.duracao_minutos);
+  }
+
+  for (const record of datasets.peso) {
+    weightKg = parseNumber(record.valor_kg);
+  }
+
   return {
     data,
     agua_ml: waterMl,
@@ -169,19 +291,49 @@ function buildDailySummary(data, records) {
   };
 }
 
+async function rowsForDate(connectors, table, data, select, order) {
+  const params = new URLSearchParams({
+    select,
+    data: `eq.${data}`,
+    order,
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/${table}?${params.toString()}`);
+  return response.json();
+}
+
 async function dailySummary(connectors, requestedDate) {
   const data = requestedDate || saoPauloNow().data;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
     throw new SupabaseRecordsError("invalid_date", "A data deve usar o formato AAAA-MM-DD.", 422);
   }
 
-  const params = new URLSearchParams({
-    select: "data,horario,item,quantidade,evento_tipo",
-    data: `eq.${data}`,
-    order: "horario.asc,id.asc",
-  });
-  const response = await supabaseRequest(connectors, `/rest/v1/${TABLE_NAME}?${params.toString()}`);
-  return buildDailySummary(data, await response.json());
+  const [alimentacao, hidratacao, exercicios, sono, peso] = await Promise.all([
+    rowsForDate(
+      connectors,
+      ALIMENTACAO_TABLE,
+      data,
+      "data,horario,item,quantidade,evento_tipo",
+      "horario.asc,id.asc",
+    ),
+    rowsForDate(
+      connectors,
+      "hidratacao",
+      data,
+      "data,horario,item,quantidade",
+      "horario.asc,id.asc",
+    ),
+    rowsForDate(
+      connectors,
+      "exercicios",
+      data,
+      "data,tipo,duracao_min,intensidade,calorias_estimadas",
+      "id.asc",
+    ),
+    rowsForDate(connectors, "sono", data, "data,inicio,fim,duracao_minutos", "id.asc"),
+    rowsForDate(connectors, "peso", data, "data,horario,valor_kg", "horario.asc,id.asc"),
+  ]);
+
+  return buildDailySummary(data, { alimentacao, hidratacao, exercicios, sono, peso });
 }
 
 async function main() {
