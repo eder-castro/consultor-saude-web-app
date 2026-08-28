@@ -23,7 +23,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 SUPABASE_HELPER = Path(__file__).with_name("supabase_health_records.mjs")
 SUPABASE_TIMEOUT_SECONDS = 30
-GEMINI_TIMEOUT_SECONDS = 30
+GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "90"))
 SESSION_TTL_DAYS = 30
 SESSION_COOKIE_NAME = "health_session"
 MAX_TEXT_LENGTH = 12_000
@@ -597,8 +597,8 @@ async def analyze_with_gemini(body: ProcessInputRequest) -> dict[str, Any]:
                 detail="Tipo de imagem não suportado. Use JPEG, PNG, WebP ou GIF.",
             )
         image_part = {
-            "inline_data": {
-                "mime_type": mime_type,
+            "inlineData": {
+                "mimeType": mime_type,
                 "data": clean_base64_image(image_base64),
             }
         }

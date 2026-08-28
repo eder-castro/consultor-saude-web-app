@@ -185,6 +185,42 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
             "não informado",
         )
 
+    async def test_uses_gemini_rest_field_names_for_images(self) -> None:
+        response = gemini_response(
+            {
+                "grupos": [
+                    {
+                        "evento_tipo": "outro",
+                        "itens": [
+                            {
+                                "item": "imagem",
+                                "quantidade_estimada": "não informado",
+                                "confirmado": True,
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        with patch.object(main, "call_gemini_sync", return_value=response) as mocked:
+            await main.analyze_with_gemini(
+                main.ProcessInputRequest(
+                    image_base64="aGVsbG8=",
+                    mime_type="image/png",
+                )
+            )
+
+        payload = mocked.call_args.args[0]
+        self.assertEqual(
+            payload["contents"][0]["parts"][1],
+            {
+                "inlineData": {
+                    "mimeType": "image/png",
+                    "data": "aGVsbG8=",
+                }
+            },
+        )
+
     async def test_keeps_mixed_food_and_hydration_in_separate_groups(self) -> None:
         response = gemini_response(
             {
