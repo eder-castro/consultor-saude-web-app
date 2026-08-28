@@ -259,6 +259,128 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item["item"] for item in groups["hidratacao"]], ["água"])
         self.assertEqual(groups["hidratacao"][0]["quantidade_estimada"], "500ml")
 
+    async def test_process_route_loads_only_authenticated_owner_context(self) -> None:
+        context = {"profile": {"clinical_profile": "contexto privado"}}
+        helper = AsyncMock(return_value=context)
+        analyzer = AsyncMock(return_value={"grupos": []})
+        with (
+            patch.object(main, "run_supabase_helper", new=helper),
+            patch.object(main, "analyze_with_gemini", new=analyzer),
+        ):
+            result = await main.process_input(
+                main.ProcessInputRequest(text="dormi 7h"),
+                {"id": "owner-a"},
+            )
+
+        self.assertEqual(result, {"grupos": []})
+        helper.assert_awaited_once_with("context", payload={"owner_id": "owner-a"})
+        self.assertEqual(analyzer.await_args.kwargs["context"], context)
+
+    async def test_exam_extraction_stays_pending_until_review(self) -> None:
+        response = gemini_response(
+            {
+                "tipo_exame": "hemograma",
+                "data_exame": "2026-08-28",
+                "resumo": "Resultados transcritos para revisão.",
+                "marcadores": [
+                    {
+                        "nome": "Hemoglobina",
+                        "valor": "14,2",
+                        "unidade": "g/dL",
+                        "referencia": "13,0 a 17,0",
+                    }
+                ],
+                "achados": [],
+                "incertezas": [],
+                "precisa_revisao": False,
+            }
+        )
+        helper = AsyncMock(return_value={"ok": True, "exam": {"id": "exam-1", "status": "pending"}})
+        with (
+            patch.object(main, "call_gemini_sync", return_value=response),
+            patch.object(main, "run_supabase_helper", new=helper),
+        ):
+            result = await main.analyze_health_exam(
+                main.HealthExamUploadRequest(
+                    file_name="hemograma.pdf",
+                    mime_type="application/pdf",
+                    file_base64="aGVsbG8=",
+                ),
+                "owner-a",
+            )
+
+        self.assertEqual(result["exam"]["status"], "pending")
+        payload = helper.await_args.kwargs["payload"]
+        self.assertEqual(payload["owner_id"], "owner-a")
+        self.assertEqual(payload["exam_type"], "hemograma")
+        self.assertEqual(payload["extracted_data"]["marcadores"][0]["valor"], "14,2")
+
+    async def test_exam_review_derives_owner_from_session(self) -> None:
+        helper = AsyncMock(return_value={"ok": True, "exam": {"id": "exam-1"}})
+        body = main.HealthExamReviewRequest(
+            exam_id="exam-1",
+            status="confirmed",
+            exam_type="hemograma",
+            extracted_data={"marcadores": []},
+        )
+        with patch.object(main, "run_supabase_helper", new=helper):
+            await main.review_health_exam(body, {"id": "owner-a"})
+
+        self.assertEqual(helper.await_args.kwargs["payload"]["owner_id"], "owner-a")
+        self.assertEqual(helper.await_args.kwargs["payload"]["status"], "confirmed")
+
+    async def test_ambiguous_image_escalates_without_losing_economy_result(self) -> None:
+        economy = gemini_response(
+            {
+                "grupos": [
+                    {
+                        "evento_tipo": "alimentacao",
+                        "itens": [
+                            {
+                                "item": "alimento visível",
+                                "quantidade_estimada": "não informado",
+                                "confirmado": True,
+                            }
+                        ],
+                    }
+                ],
+                "precisa_revisao": True,
+                "motivos_revisao": ["imagem borrada"],
+            }
+        )
+        power = gemini_response(
+            {
+                "grupos": [
+                    {
+                        "evento_tipo": "alimentacao",
+                        "itens": [
+                            {
+                                "item": "arroz",
+                                "quantidade_estimada": "1 porção",
+                                "confirmado": True,
+                            }
+                        ],
+                    }
+                ],
+                "precisa_revisao": False,
+                "motivos_revisao": [],
+            }
+        )
+        with (
+            patch.object(main, "GEMINI_POWER_MODEL", "power-model"),
+            patch.object(main, "call_gemini_sync", side_effect=[economy, power]) as call,
+        ):
+            result = await main.analyze_with_gemini(
+                main.ProcessInputRequest(
+                    image_base64="aGVsbG8=",
+                    mime_type="image/png",
+                )
+            )
+
+        self.assertEqual(result["grupos"][0]["itens"][0]["item"], "arroz")
+        self.assertEqual(call.call_count, 2)
+        self.assertEqual(call.call_args_list[1].args[1], ["power-model"])
+
     async def test_maps_empty_gemini_response_to_safe_error(self) -> None:
         with patch.object(main, "call_gemini_sync", return_value={"candidates": []}):
             with self.assertRaisesRegex(HTTPException, "resposta vazia"):

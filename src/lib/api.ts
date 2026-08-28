@@ -1,9 +1,15 @@
 import { isMockMode, readConfig } from "./api-config";
 import {
   DailySummarySchema,
+  HealthContextSchema,
+  ProcessHealthExamResponseSchema,
+  ReviewHealthExamResponseSchema,
   ValidationPayloadSchema,
   SaveResponseSchema,
   type DailySummary,
+  type Exam,
+  type ExamExtractedData,
+  type HealthContext,
   type EventoTipo,
   type Item,
   type ValidationGroup,
@@ -316,4 +322,77 @@ export function fileToBase64(file: File): Promise<string> {
     r.onerror = reject;
     r.readAsDataURL(file);
   });
+}
+
+export async function prepareHealthExamFile(file: File): Promise<{
+  file_name: string;
+  mime_type: string;
+  file_base64: string;
+}> {
+  if (file.type === "application/pdf") {
+    return {
+      file_name: file.name,
+      mime_type: "application/pdf",
+      file_base64: await fileToBase64(file),
+    };
+  }
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Selecione uma imagem ou um arquivo PDF.");
+  }
+
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob(resolve, "image/jpeg", 0.78),
+    );
+    if (!blob) throw new Error("Não foi possível preparar a imagem.");
+    return {
+      file_name: file.name.replace(/\.[^.]+$/, "") + ".jpg",
+      mime_type: "image/jpeg",
+      file_base64: await fileToBase64(new File([blob], "exam.jpg", { type: "image/jpeg" })),
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message) throw error;
+    throw new Error("Não foi possível ler esta imagem. Tente outro arquivo.");
+  }
+}
+
+export async function getHealthContext(): Promise<HealthContext> {
+  const json = await fetchApi("/health-context", { method: "GET" });
+  return HealthContextSchema.parse(json);
+}
+
+export async function processHealthExam(input: {
+  file_name: string;
+  mime_type: string;
+  file_base64: string;
+  notes?: string;
+}): Promise<Exam> {
+  const json = await fetchApi("/health-context/exams/process", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return ProcessHealthExamResponseSchema.parse(json).exam;
+}
+
+export async function reviewHealthExam(input: {
+  exam_id: string;
+  status: "confirmed" | "discarded";
+  exam_type?: string;
+  exam_date?: string | null;
+  summary?: string;
+  extracted_data?: ExamExtractedData;
+  uncertainties?: string[];
+}): Promise<Exam> {
+  const json = await fetchApi("/health-context/exams/review", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return ReviewHealthExamResponseSchema.parse(json).exam;
 }

@@ -406,6 +406,175 @@ async function dailySummary(connectors, requestedDate, ownerId) {
   return buildDailySummary(data, { alimentacao, hidratacao, exercicios, sono, peso });
 }
 
+async function getContextRow(connectors, ownerId) {
+  const id = requireOwnerId(ownerId);
+  const params = new URLSearchParams({
+    select: "owner_id,clinical_profile,gem_instructions,updated_at",
+    owner_id: `eq.${id}`,
+    limit: "1",
+  });
+  const response = await supabaseRequest(
+    connectors,
+    `/rest/v1/health_contexts?${params.toString()}`,
+  );
+  return (await response.json())[0] ?? null;
+}
+
+async function recentOwnerRows(connectors, table, ownerId, select, order, limit = 5) {
+  const params = new URLSearchParams({
+    select,
+    owner_id: `eq.${requireOwnerId(ownerId)}`,
+    order,
+    limit: String(limit),
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/${table}?${params.toString()}`);
+  return response.json();
+}
+
+async function contextForAnalysis(connectors, ownerId) {
+  const id = requireOwnerId(ownerId);
+  const [profile, exams, weight, sleep, exercise] = await Promise.all([
+    getContextRow(connectors, id),
+    recentOwnerRows(
+      connectors,
+      "health_exams",
+      id,
+      "id,exam_type,exam_date,summary,extracted_data,uncertainties,status,reviewed_at",
+      "exam_date.desc.nullslast,created_at.desc",
+      10,
+    ),
+    recentOwnerRows(connectors, "peso", id, "data,horario,valor_kg", "data.desc,horario.desc", 5),
+    recentOwnerRows(
+      connectors,
+      "sono",
+      id,
+      "data,inicio,fim,duracao_minutos,sono_profundo_min,sono_leve_min,sono_rem_min,acordado_min",
+      "data.desc",
+      5,
+    ),
+    recentOwnerRows(
+      connectors,
+      "exercicios",
+      id,
+      "data,tipo,duracao_min,intensidade,calorias_estimadas",
+      "data.desc",
+      5,
+    ),
+  ]);
+
+  return {
+    ok: true,
+    profile,
+    confirmed_exams: exams.filter(
+      (exam) => exam.status === undefined || exam.status === "confirmed",
+    ),
+    recent: { weight, sleep, exercise },
+    local_now: saoPauloNow(),
+  };
+}
+
+export async function upsertHealthContext(connectors, payload) {
+  const ownerId = requireOwnerId(payload.owner_id);
+  const response = await supabaseRequest(
+    connectors,
+    "/rest/v1/health_contexts?on_conflict=owner_id",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify({
+        owner_id: ownerId,
+        clinical_profile: String(payload.clinical_profile ?? ""),
+        gem_instructions: String(payload.gem_instructions ?? ""),
+        updated_at: new Date().toISOString(),
+      }),
+    },
+  );
+  return { ok: true, profile: (await response.json())[0] ?? null };
+}
+
+export async function createHealthExam(connectors, payload) {
+  const ownerId = requireOwnerId(payload.owner_id);
+  const response = await supabaseRequest(connectors, "/rest/v1/health_exams", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      owner_id: ownerId,
+      file_name: String(payload.file_name ?? "exame"),
+      mime_type: String(payload.mime_type ?? "application/octet-stream"),
+      exam_type: String(payload.exam_type ?? "outro"),
+      exam_date: normalizeNullable(payload.exam_date),
+      summary: String(payload.summary ?? ""),
+      extracted_data: payload.extracted_data ?? {},
+      uncertainties: Array.isArray(payload.uncertainties) ? payload.uncertainties : [],
+      status: "pending",
+    }),
+  });
+  return { ok: true, exam: (await response.json())[0] ?? null };
+}
+
+async function listHealthExams(connectors, ownerId) {
+  const id = requireOwnerId(ownerId);
+  const params = new URLSearchParams({
+    select:
+      "id,file_name,mime_type,exam_type,exam_date,summary,extracted_data,uncertainties,status,created_at,reviewed_at",
+    owner_id: `eq.${id}`,
+    order: "created_at.desc",
+    limit: "30",
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/health_exams?${params.toString()}`);
+  return { ok: true, exams: await response.json() };
+}
+
+export async function reviewHealthExam(connectors, payload) {
+  const ownerId = requireOwnerId(payload.owner_id);
+  const examId = String(payload.exam_id ?? "");
+  const status = payload.status === "confirmed" ? "confirmed" : "discarded";
+  if (!/^[0-9a-f-]{36}$/i.test(examId)) {
+    throw new SupabaseRecordsError("invalid_exam", "O exame informado não é válido.", 422);
+  }
+
+  const patch = {
+    status,
+    reviewed_at: new Date().toISOString(),
+  };
+  if (status === "confirmed") {
+    patch.exam_type = String(payload.exam_type ?? "outro");
+    patch.exam_date = normalizeNullable(payload.exam_date);
+    patch.summary = String(payload.summary ?? "");
+    patch.extracted_data = payload.extracted_data ?? {};
+    patch.uncertainties = Array.isArray(payload.uncertainties) ? payload.uncertainties : [];
+  }
+
+  const params = new URLSearchParams({
+    id: `eq.${examId}`,
+    owner_id: `eq.${ownerId}`,
+    status: "eq.pending",
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/health_exams?${params.toString()}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify(patch),
+  });
+  const exam = (await response.json())[0];
+  if (!exam) {
+    throw new SupabaseRecordsError(
+      "exam_not_pending",
+      "Este exame não existe, não pertence à conta ou já foi revisado.",
+      409,
+    );
+  }
+  return { ok: true, exam };
+}
+
 async function userByEmail(connectors, email) {
   const params = new URLSearchParams({
     select: "id,email,password_hash,created_at",
@@ -549,6 +718,23 @@ async function main() {
   if (action === "summary") {
     const payload = await readJsonInput();
     return dailySummary(connectors, process.argv[3], requireOwnerId(payload.owner_id));
+  }
+  if (action === "context") {
+    const payload = await readJsonInput();
+    return contextForAnalysis(connectors, payload.owner_id);
+  }
+  if (action === "upsert-context") {
+    return upsertHealthContext(connectors, await readJsonInput());
+  }
+  if (action === "create-exam") {
+    return createHealthExam(connectors, await readJsonInput());
+  }
+  if (action === "list-exams") {
+    const payload = await readJsonInput();
+    return listHealthExams(connectors, payload.owner_id);
+  }
+  if (action === "review-exam") {
+    return reviewHealthExam(connectors, await readJsonInput());
   }
   if (action === "user-by-email") {
     const payload = await readJsonInput();

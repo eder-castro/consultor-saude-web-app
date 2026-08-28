@@ -20,8 +20,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
-GEMINI_FALLBACK_MODEL = os.environ.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_POWER_MODEL = os.environ.get("GEMINI_POWER_MODEL", "gemini-3.6-flash")
+GEMINI_FALLBACK_MODEL = os.environ.get("GEMINI_FALLBACK_MODEL", "")
 SUPABASE_HELPER = Path(__file__).with_name("supabase_health_records.mjs")
 SUPABASE_TIMEOUT_SECONDS = 30
 GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "90"))
@@ -30,6 +31,7 @@ SESSION_COOKIE_NAME = "health_session"
 MAX_TEXT_LENGTH = 12_000
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_EXAM_TYPES = ALLOWED_IMAGE_TYPES | {"application/pdf"}
 EVENT_TYPES = ("alimentacao", "hidratacao", "exercicio", "sono", "peso", "outro")
 
 logger = logging.getLogger(__name__)
@@ -64,6 +66,23 @@ class ProcessInputRequest(BaseModel):
     mime_type: str | None = Field(default=None, max_length=100)
 
 
+class HealthExamUploadRequest(BaseModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    mime_type: str = Field(min_length=1, max_length=100)
+    file_base64: str = Field(min_length=1, max_length=(MAX_IMAGE_BYTES * 4 // 3) + 2048)
+    notes: str | None = Field(default=None, max_length=2_000)
+
+
+class HealthExamReviewRequest(BaseModel):
+    exam_id: str = Field(min_length=1, max_length=100)
+    status: str
+    exam_type: str | None = Field(default=None, max_length=100)
+    exam_date: str | None = Field(default=None, max_length=20)
+    summary: str | None = Field(default=None, max_length=1_000)
+    extracted_data: dict[str, Any] = Field(default_factory=dict)
+    uncertainties: list[str] = Field(default_factory=list, max_length=30)
+
+
 class SaveRecordsRequest(BaseModel):
     evento_tipo: str | None = None
     itens: list[dict[str, Any]] = Field(default_factory=list)
@@ -90,6 +109,26 @@ class GeminiGroup(BaseModel):
 class GeminiPayload(BaseModel):
     grupos: list[GeminiGroup] = Field(min_length=1, max_length=len(EVENT_TYPES))
     resumo: str | None = Field(default=None, max_length=500)
+    precisa_revisao: bool = False
+    motivos_revisao: list[str] = Field(default_factory=list, max_length=10)
+
+
+class ExamMarker(BaseModel):
+    nome: str = Field(min_length=1, max_length=200)
+    valor: str | None = Field(default=None, max_length=100)
+    unidade: str | None = Field(default=None, max_length=50)
+    referencia: str | None = Field(default=None, max_length=200)
+    observacao: str | None = Field(default=None, max_length=500)
+
+
+class ExamExtraction(BaseModel):
+    tipo_exame: str = Field(default="outro", max_length=100)
+    data_exame: str | None = Field(default=None, max_length=20)
+    resumo: str = Field(default="", max_length=1_000)
+    marcadores: list[ExamMarker] = Field(default_factory=list, max_length=100)
+    achados: list[str] = Field(default_factory=list, max_length=30)
+    incertezas: list[str] = Field(default_factory=list, max_length=30)
+    precisa_revisao: bool = False
 
 
 def normalize_email(email: str) -> str:
@@ -378,9 +417,10 @@ async def run_supabase_helper(
 @app.post("/process-input")
 async def process_input(
     body: ProcessInputRequest,
-    _: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
 ):
-    return await analyze_with_gemini(body)
+    context = await run_supabase_helper("context", payload={"owner_id": user["id"]})
+    return await analyze_with_gemini(body, context=context)
 
 
 @app.post("/save-records")
@@ -402,6 +442,36 @@ async def daily_summary(
         "summary",
         payload={"owner_id": user["id"]},
         argument=data.isoformat() if data else None,
+    )
+
+
+@app.get("/health-context")
+async def health_context(user: Annotated[dict[str, Any], Depends(require_authenticated_user)]):
+    context, exams = await asyncio.gather(
+        run_supabase_helper("context", payload={"owner_id": user["id"]}),
+        run_supabase_helper("list-exams", payload={"owner_id": user["id"]}),
+    )
+    return {**context, "exams": exams.get("exams", [])}
+
+
+@app.post("/health-context/exams/process")
+async def process_health_exam(
+    body: HealthExamUploadRequest,
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+):
+    return await analyze_health_exam(body, user["id"])
+
+
+@app.post("/health-context/exams/review")
+async def review_health_exam(
+    body: HealthExamReviewRequest,
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+):
+    if body.status not in {"confirmed", "discarded"}:
+        raise HTTPException(status_code=422, detail="Escolha confirmar ou descartar o exame.")
+    return await run_supabase_helper(
+        "review-exam",
+        payload={**body.model_dump(), "owner_id": user["id"]},
     )
 
 
@@ -455,22 +525,57 @@ def gemini_schema() -> dict[str, Any]:
                 },
             },
             "resumo": {"type": "STRING"},
+            "precisa_revisao": {"type": "BOOLEAN"},
+            "motivos_revisao": {"type": "ARRAY", "items": {"type": "STRING"}},
         },
         "required": ["grupos"],
     }
 
 
-def gemini_prompt(text: str | None, has_image: bool) -> str:
+def context_for_prompt(context: dict[str, Any] | None) -> str:
+    if not context:
+        return ""
+    profile = context.get("profile") or {}
+    safe_context = {
+        "perfil_clinico": profile.get("clinical_profile", ""),
+        "instrucoes_do_gem": profile.get("gem_instructions", ""),
+        "exames_confirmados": context.get("confirmed_exams", []),
+        "registros_recentes": context.get("recent", {}),
+        "agora_em_sao_paulo": context.get("local_now", {}),
+    }
+    serialized = json.dumps(safe_context, ensure_ascii=False)
+    return serialized[:40_000]
+
+
+def gemini_prompt(
+    text: str | None,
+    has_image: bool,
+    context: dict[str, Any] | None = None,
+) -> str:
     source_description = []
     if text:
         source_description.append(f'Texto enviado pelo usuário: "{text}"')
     if has_image:
         source_description.append("Uma imagem foi anexada ao registro.")
 
+    persisted_context = context_for_prompt(context)
+    context_section = (
+        f"""
+CONTEXTO PRIVADO CONFIRMADO DO USUÁRIO:
+{persisted_context}
+
+Use esse contexto apenas para calibrar um insight curto e contextual. Não invente
+resultados ausentes e não transforme uma observação em diagnóstico.
+"""
+        if persisted_context
+        else ""
+    )
+
     return f"""
 Você é um assistente de registro de saúde em português do Brasil.
 Interprete o conteúdo abaixo e extraia somente fatos explicitamente observados.
-Não dê diagnóstico, recomendação médica ou informação nutricional.
+Não dê diagnóstico nem prescrição. Insights devem ser curtos, prudentes e
+educativos, baseados apenas no contexto clínico confirmado.
 Não invente itens ou quantidades; quando a quantidade não estiver clara, use "não informado".
 
 Classifique cada fato observado em um tipo:
@@ -485,10 +590,89 @@ toda a mensagem: crie um grupo separado por tipo em "grupos". Cada item deve
 aparecer em exatamente um grupo. Por exemplo, "comi arroz e bebi água" deve
 gerar um grupo alimentacao com arroz e um grupo hidratacao com água.
 
+Se uma imagem estiver borrada, cortada, ilegível, contraditória com o texto ou
+não permitir distinguir os itens com segurança, marque "precisa_revisao" como
+true e explique os motivos em "motivos_revisao". Ainda assim, retorne somente
+o que for claramente observável.
+
 Retorne apenas o JSON no formato solicitado.
 
 {chr(10).join(source_description)}
+{context_section}
 """.strip()
+
+
+def exam_schema() -> dict[str, Any]:
+    return {
+        "type": "OBJECT",
+        "properties": {
+            "tipo_exame": {"type": "STRING"},
+            "data_exame": {"type": "STRING"},
+            "resumo": {"type": "STRING"},
+            "marcadores": {
+                "type": "ARRAY",
+                "items": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "nome": {"type": "STRING"},
+                        "valor": {"type": "STRING"},
+                        "unidade": {"type": "STRING"},
+                        "referencia": {"type": "STRING"},
+                        "observacao": {"type": "STRING"},
+                    },
+                    "required": ["nome"],
+                },
+            },
+            "achados": {"type": "ARRAY", "items": {"type": "STRING"}},
+            "incertezas": {"type": "ARRAY", "items": {"type": "STRING"}},
+            "precisa_revisao": {"type": "BOOLEAN"},
+        },
+        "required": ["tipo_exame", "resumo", "marcadores", "achados", "incertezas", "precisa_revisao"],
+    }
+
+
+def exam_prompt(file_name: str, mime_type: str, notes: str | None) -> str:
+    return f"""
+Você é um extrator de resultados de exames de saúde em português do Brasil.
+Faça apenas transcrição e organização do que estiver legível no documento.
+Não dê diagnóstico, não classifique risco e não recomende tratamento.
+
+Tipo de arquivo: {mime_type}
+Nome informado: {file_name}
+Observação do usuário: {notes or "nenhuma"}
+
+Extraia resultados de exames de sangue, eletrocardiogramas ou outros documentos.
+Para cada marcador, preserve nome, valor, unidade, intervalo de referência e
+observações visíveis. Em um eletrocardiograma, trate ritmo, frequência,
+intervalos e impressão escrita como dados transcritos, sem reinterpretá-los.
+Se algo estiver ilegível ou não estiver presente, use null ou uma incerteza;
+não invente valores. Marque precisa_revisao quando a leitura estiver parcial,
+ambígua ou exigir conferência humana.
+
+Retorne apenas JSON no formato solicitado.
+""".strip()
+
+
+def parse_gemini_payload(response: Any) -> GeminiPayload:
+    try:
+        return GeminiPayload.model_validate(json.loads(extract_gemini_text(response)))
+    except (json.JSONDecodeError, ValidationError) as error:
+        logger.warning("Resposta estruturada inválida do Gemini: %s", error)
+        raise HTTPException(
+            status_code=502,
+            detail="O Gemini retornou dados fora do formato esperado.",
+        ) from error
+
+
+def parse_exam_extraction(response: Any) -> ExamExtraction:
+    try:
+        return ExamExtraction.model_validate(json.loads(extract_gemini_text(response)))
+    except (json.JSONDecodeError, ValidationError) as error:
+        logger.warning("Extração de exame inválida do Gemini: %s", error)
+        raise HTTPException(
+            status_code=502,
+            detail="O Gemini não conseguiu estruturar os dados do exame.",
+        ) from error
 
 
 def is_gemini_quota_error(detail: str) -> bool:
@@ -496,13 +680,13 @@ def is_gemini_quota_error(detail: str) -> bool:
     return "quota" in normalized or "rate limit" in normalized
 
 
-def call_gemini_sync(payload: dict[str, Any]) -> Any:
+def call_gemini_sync(payload: dict[str, Any], models: list[str] | None = None) -> Any:
     request_body = json.dumps(payload).encode("utf-8")
-    models = [GEMINI_MODEL]
-    if GEMINI_FALLBACK_MODEL and GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
-        models.append(GEMINI_FALLBACK_MODEL)
+    candidate_models = models or [GEMINI_MODEL]
+    if models is None and GEMINI_FALLBACK_MODEL and GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
+        candidate_models.append(GEMINI_FALLBACK_MODEL)
 
-    for model_index, model in enumerate(models):
+    for model_index, model in enumerate(candidate_models):
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model}:generateContent?key={GEMINI_API_KEY}"
@@ -528,15 +712,20 @@ def call_gemini_sync(payload: dict[str, Any]) -> Any:
                 )
                 if (
                     error.code == 429
-                    and model_index < len(models) - 1
+                    and model_index < len(candidate_models) - 1
                     and is_gemini_quota_error(detail)
                 ):
                     logger.warning(
                         "Cota do modelo Gemini %s atingida; tentando fallback %s.",
                         model,
-                        models[model_index + 1],
+                        candidate_models[model_index + 1],
                     )
                     break
+                if error.code == 429 and is_gemini_quota_error(detail):
+                    raise HTTPException(
+                        status_code=429,
+                        detail="A cota do modelo Gemini foi atingida. Tente novamente mais tarde.",
+                    ) from error
                 if error.code in {429, 503} and attempt < 2:
                     time.sleep(2**attempt)
                     continue
@@ -595,7 +784,10 @@ def extract_gemini_text(response: Any) -> str:
     return fenced.group(1).strip() if fenced else text
 
 
-async def analyze_with_gemini(body: ProcessInputRequest) -> dict[str, Any]:
+async def analyze_with_gemini(
+    body: ProcessInputRequest,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     text = (body.text or "").strip()
     image_base64 = body.image_base64
 
@@ -626,31 +818,41 @@ async def analyze_with_gemini(body: ProcessInputRequest) -> dict[str, Any]:
         }
 
     parts: list[dict[str, Any]] = [
-        {"text": gemini_prompt(text or None, image_part is not None)}
+        {"text": gemini_prompt(text or None, image_part is not None, context)}
     ]
     if image_part:
         parts.append(image_part)
 
-    response = await asyncio.to_thread(
-        call_gemini_sync,
-        {
-            "contents": [{"role": "user", "parts": parts}],
-            "generationConfig": {
-                "temperature": 0.1,
-                "responseMimeType": "application/json",
-                "responseSchema": gemini_schema(),
-            },
+    request_payload = {
+        "contents": [{"role": "user", "parts": parts}],
+        "generationConfig": {
+            "temperature": 0.1,
+            "responseMimeType": "application/json",
+            "responseSchema": gemini_schema(),
         },
-    )
+    }
+    response = await asyncio.to_thread(call_gemini_sync, request_payload)
+    parsed = parse_gemini_payload(response)
 
-    try:
-        parsed = GeminiPayload.model_validate(json.loads(extract_gemini_text(response)))
-    except (json.JSONDecodeError, ValidationError) as error:
-        logger.warning("Resposta estruturada inválida do Gemini: %s", error)
-        raise HTTPException(
-            status_code=502,
-            detail="O Gemini retornou dados fora do formato esperado.",
-        ) from error
+    if (
+        parsed.precisa_revisao
+        and image_part is not None
+        and GEMINI_POWER_MODEL
+        and GEMINI_POWER_MODEL != GEMINI_MODEL
+    ):
+        try:
+            power_response = await asyncio.to_thread(
+                call_gemini_sync,
+                request_payload,
+                [GEMINI_POWER_MODEL],
+            )
+            parsed = parse_gemini_payload(power_response)
+        except HTTPException as error:
+            logger.warning(
+                "Escalonamento para %s indisponível; mantendo extração econômica: %s",
+                GEMINI_POWER_MODEL,
+                error.detail,
+            )
 
     groups_by_type: dict[str, list[GeminiItem]] = {}
     for group in parsed.grupos:
@@ -679,6 +881,73 @@ async def analyze_with_gemini(body: ProcessInputRequest) -> dict[str, Any]:
         ],
         **({"resumo": parsed.resumo} if parsed.resumo else {}),
     }
+
+
+async def analyze_health_exam(body: HealthExamUploadRequest, owner_id: str) -> dict[str, Any]:
+    if not GEMINI_API_KEY:
+        raise HTTPException(
+            status_code=503,
+            detail="A integração do Gemini ainda não está configurada.",
+        )
+    mime_type = body.mime_type.lower().strip()
+    if mime_type not in ALLOWED_EXAM_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="Tipo de exame não suportado. Use PDF, JPEG, PNG, WebP ou GIF.",
+        )
+    encoded = clean_base64_image(body.file_base64)
+    request_payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {"text": exam_prompt(body.file_name, mime_type, body.notes)},
+                    {"inlineData": {"mimeType": mime_type, "data": encoded}},
+                ],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0,
+            "responseMimeType": "application/json",
+            "responseSchema": exam_schema(),
+        },
+    }
+    response = await asyncio.to_thread(call_gemini_sync, request_payload)
+    extraction = parse_exam_extraction(response)
+
+    if extraction.precisa_revisao and GEMINI_POWER_MODEL and GEMINI_POWER_MODEL != GEMINI_MODEL:
+        try:
+            power_response = await asyncio.to_thread(
+                call_gemini_sync,
+                request_payload,
+                [GEMINI_POWER_MODEL],
+            )
+            extraction = parse_exam_extraction(power_response)
+        except HTTPException as error:
+            logger.warning(
+                "Escalonamento do exame para %s indisponível; mantendo prévia econômica: %s",
+                GEMINI_POWER_MODEL,
+                error.detail,
+            )
+
+    extracted_data = extraction.model_dump(mode="json")
+    created = await run_supabase_helper(
+        "create-exam",
+        payload={
+            "owner_id": owner_id,
+            "file_name": body.file_name,
+            "mime_type": mime_type,
+            "exam_type": extraction.tipo_exame,
+            "exam_date": extraction.data_exame,
+            "summary": extraction.resumo,
+            "extracted_data": extracted_data,
+            "uncertainties": extraction.incertezas,
+        },
+    )
+    exam = created.get("exam")
+    if not isinstance(exam, dict) or not exam.get("id"):
+        raise HTTPException(status_code=502, detail="Não foi possível criar a revisão do exame.")
+    return {"ok": True, "exam": exam}
 
 
 if __name__ == "__main__":

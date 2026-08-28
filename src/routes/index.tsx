@@ -3,10 +3,10 @@ import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatFeed } from "@/components/chat/ChatFeed";
 import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
-import { fileToBase64, getApiErrorMessage, processInput } from "@/lib/api";
+import { getApiErrorMessage, prepareHealthExamFile, processInput } from "@/lib/api";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { useChat } from "@/providers/chat-context";
+import { useChat, type ChatMessage } from "@/providers/chat-context";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -52,14 +52,17 @@ function ChatPage() {
     setMessages((m) => [...m, userMsg, { id: loadingId, role: "assistant", kind: "loading" }]);
 
     try {
-      const payload =
-        s.kind === "text"
-          ? await processInput({ text: s.text })
-          : await processInput({
-              imageBase64: await fileToBase64(s.file),
-              text: s.caption || undefined,
-              mimeType: s.file.type,
-            });
+      let payload;
+      if (s.kind === "text") {
+        payload = await processInput({ text: s.text });
+      } else {
+        const prepared = await prepareHealthExamFile(s.file);
+        payload = await processInput({
+          imageBase64: prepared.file_base64,
+          text: s.caption || undefined,
+          mimeType: prepared.mime_type,
+        });
+      }
 
       setMessages((m) =>
         m.map((msg) =>
