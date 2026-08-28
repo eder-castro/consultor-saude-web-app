@@ -81,11 +81,15 @@ function Bubble({
         <div className="max-w-[92%] rounded-3xl rounded-tr-sm bg-primary px-4 py-3 text-base leading-relaxed text-primary-foreground sm:max-w-[85%]">
           {m.kind === "image" ? (
             <div className="space-y-2">
-              <img
-                src={m.imageUrl}
-                alt="enviada"
-                className="max-h-64 w-full rounded-lg object-cover"
-              />
+              {m.imageUrl ? (
+                <img
+                  src={m.imageUrl}
+                  alt="enviada"
+                  className="max-h-64 w-full rounded-lg object-cover"
+                />
+              ) : (
+                <p className="text-sm opacity-80">Imagem analisada</p>
+              )}
               {m.caption && <p>{m.caption}</p>}
             </div>
           ) : (

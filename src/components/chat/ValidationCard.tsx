@@ -8,7 +8,7 @@ import type { EventoTipo, Item, ValidationGroup, ValidationPayload } from "@/lib
 import { toast } from "sonner";
 
 const TIPO_LABEL: Record<EventoTipo, string> = {
-  alimentacao: "Refeição detectada",
+  alimentacao: "Alimentação",
   hidratacao: "Hidratação",
   exercicio: "Exercício",
   sono: "Sono",

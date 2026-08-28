@@ -12,7 +12,7 @@ import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import uuid4
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
@@ -81,6 +81,18 @@ class HealthExamReviewRequest(BaseModel):
     summary: str | None = Field(default=None, max_length=1_000)
     extracted_data: dict[str, Any] = Field(default_factory=dict)
     uncertainties: list[str] = Field(default_factory=list, max_length=30)
+
+
+class ChatHistoryMessage(BaseModel):
+    client_id: str = Field(min_length=1, max_length=100)
+    role: Literal["user", "assistant"]
+    kind: Literal["text", "image", "validation"]
+    payload: dict[str, Any] = Field(default_factory=dict)
+    sequence: int = Field(ge=0, le=10_000)
+
+
+class ChatHistorySaveRequest(BaseModel):
+    messages: list[ChatHistoryMessage] = Field(default_factory=list, max_length=100)
 
 
 class SaveRecordsRequest(BaseModel):
@@ -445,6 +457,22 @@ async def daily_summary(
     )
 
 
+@app.get("/chat-history")
+async def chat_history(user: Annotated[dict[str, Any], Depends(require_authenticated_user)]):
+    return await run_supabase_helper("list-chat", payload={"owner_id": user["id"]})
+
+
+@app.put("/chat-history")
+async def save_chat_history(
+    body: ChatHistorySaveRequest,
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+):
+    return await run_supabase_helper(
+        "save-chat",
+        payload={"owner_id": user["id"], "messages": body.model_dump()["messages"]},
+    )
+
+
 @app.get("/health-context")
 async def health_context(user: Annotated[dict[str, Any], Depends(require_authenticated_user)]):
     context, exams = await asyncio.gather(
@@ -589,6 +617,16 @@ Uma mensagem pode conter mais de um tipo. Nesse caso, não use um único tipo pa
 toda a mensagem: crie um grupo separado por tipo em "grupos". Cada item deve
 aparecer em exatamente um grupo. Por exemplo, "comi arroz e bebi água" deve
 gerar um grupo alimentacao com arroz e um grupo hidratacao com água.
+Analise separadamente o texto digitado e todo texto legível dentro da imagem,
+depois una os fatos sem omitir nenhum deles. Uma legenda sobre sono junto de uma
+foto de refeição deve gerar grupos de sono e alimentação.
+
+Regras específicas:
+- prints de aplicativos de sono devem gerar um grupo sono; use a duração total
+  legível como quantidade (por exemplo "7h 35min" ou "455 min");
+- fotos de refeições devem gerar alimentação com um item por alimento visível;
+- textos impressos na foto contam como fonte explícita e devem ser transcritos;
+- nunca classifique sono ou refeição como "outro" quando esses fatos estiverem visíveis.
 
 Se uma imagem estiver borrada, cortada, ilegível, contraditória com o texto ou
 não permitir distinguir os itens com segurança, marque "precisa_revisao" como
@@ -835,8 +873,11 @@ async def analyze_with_gemini(
     parsed = parse_gemini_payload(response)
 
     if (
-        parsed.precisa_revisao
-        and image_part is not None
+        image_part is not None
+        and (
+            parsed.precisa_revisao
+            or all(group.evento_tipo == "outro" for group in parsed.grupos)
+        )
         and GEMINI_POWER_MODEL
         and GEMINI_POWER_MODEL != GEMINI_MODEL
     ):

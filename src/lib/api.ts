@@ -83,6 +83,14 @@ export function getApiErrorMessage(error: unknown): string {
 
 export type AuthUser = { id: string; email: string };
 export type Credentials = { email: string; password: string };
+export type ChatHistoryRow = {
+  client_id: string;
+  role: "user" | "assistant";
+  kind: "text" | "image" | "validation";
+  payload: Record<string, unknown>;
+  sequence: number;
+  created_at: string;
+};
 
 export async function login(credentials: Credentials): Promise<AuthUser> {
   return (await fetchApi("/auth/login", {
@@ -104,6 +112,22 @@ export async function getCurrentUser(): Promise<AuthUser> {
 
 export async function logout(): Promise<{ ok: true }> {
   return (await fetchApi("/auth/logout", { method: "POST" })) as { ok: true };
+}
+
+export async function getChatHistory(): Promise<ChatHistoryRow[]> {
+  const json = (await fetchApi("/chat-history", { method: "GET" })) as {
+    messages?: ChatHistoryRow[];
+  };
+  return Array.isArray(json.messages) ? json.messages : [];
+}
+
+export async function saveChatHistory(
+  messages: Omit<ChatHistoryRow, "created_at">[],
+): Promise<{ ok: true }> {
+  return (await fetchApi("/chat-history", {
+    method: "PUT",
+    body: JSON.stringify({ messages }),
+  })) as { ok: true };
 }
 
 // ===== Mock helpers =====

@@ -4,7 +4,7 @@ import type { ValidationPayload } from "@/lib/api-schemas";
 
 export type ChatMessage =
   | { id: string; role: "user"; kind: "text"; text: string }
-  | { id: string; role: "user"; kind: "image"; imageUrl: string; caption: string }
+  | { id: string; role: "user"; kind: "image"; imageUrl?: string; caption: string }
   | { id: string; role: "assistant"; kind: "loading" }
   | { id: string; role: "assistant"; kind: "text"; text: string }
   | {

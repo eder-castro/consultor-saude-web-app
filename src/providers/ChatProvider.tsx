@@ -1,21 +1,111 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChatContext, type ChatMessage } from "@/providers/chat-context";
 import { useAuth } from "@/providers/auth-context";
+import { getChatHistory, saveChatHistory, type ChatHistoryRow } from "@/lib/api";
+import { ValidationPayloadSchema } from "@/lib/api-schemas";
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [hydratedOwnerId, setHydratedOwnerId] = useState<string | null>(null);
   const { user } = useAuth();
-  const previousUserId = useRef<string | null>(user?.id ?? null);
 
   useEffect(() => {
-    const nextUserId = user?.id ?? null;
-    if (previousUserId.current !== nextUserId) {
+    if (!user?.id) {
       setMessages([]);
-      previousUserId.current = nextUserId;
+      setHydratedOwnerId(null);
+      return;
     }
+    let cancelled = false;
+    setHydratedOwnerId(null);
+    void getChatHistory()
+      .then((rows) => {
+        if (cancelled) return;
+        setMessages(
+          rows.map(deserializeMessage).filter((message): message is ChatMessage => !!message),
+        );
+        setHydratedOwnerId(user.id);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMessages([]);
+        setHydratedOwnerId(user.id);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || hydratedOwnerId !== user.id) return;
+    const persistent = messages
+      .map(serializeMessage)
+      .filter((message): message is Omit<ChatHistoryRow, "created_at"> => !!message);
+    const timer = window.setTimeout(() => {
+      void saveChatHistory(persistent).catch(() => undefined);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [hydratedOwnerId, messages, user?.id]);
 
   const value = useMemo(() => ({ messages, setMessages }), [messages]);
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+}
+
+function serializeMessage(
+  message: ChatMessage,
+  sequence: number,
+): Omit<ChatHistoryRow, "created_at"> | null {
+  if (message.kind === "loading") return null;
+  if (message.kind === "text") {
+    return {
+      client_id: message.id,
+      role: message.role,
+      kind: "text",
+      payload: { text: message.text },
+      sequence,
+    };
+  }
+  if (message.kind === "image") {
+    return {
+      client_id: message.id,
+      role: "user",
+      kind: "image",
+      payload: { caption: message.caption },
+      sequence,
+    };
+  }
+  return {
+    client_id: message.id,
+    role: "assistant",
+    kind: "validation",
+    payload: { validation: message.payload, status: message.status },
+    sequence,
+  };
+}
+
+function deserializeMessage(row: ChatHistoryRow): ChatMessage | null {
+  if (row.kind === "text" && typeof row.payload.text === "string") {
+    return { id: row.client_id, role: row.role, kind: "text", text: row.payload.text };
+  }
+  if (row.kind === "image" && row.role === "user") {
+    return {
+      id: row.client_id,
+      role: "user",
+      kind: "image",
+      caption: typeof row.payload.caption === "string" ? row.payload.caption : "",
+    };
+  }
+  if (row.kind === "validation" && row.role === "assistant") {
+    const parsed = ValidationPayloadSchema.safeParse(row.payload.validation);
+    const status = row.payload.status;
+    if (!parsed.success || !["pending", "saved", "discarded"].includes(String(status))) return null;
+    return {
+      id: row.client_id,
+      role: "assistant",
+      kind: "validation",
+      payload: parsed.data,
+      status: status as "pending" | "saved" | "discarded",
+    };
+  }
+  return null;
 }

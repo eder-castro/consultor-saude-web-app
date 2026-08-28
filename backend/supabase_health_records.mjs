@@ -296,9 +296,15 @@ function parseWaterMl(value) {
 
 function parseSleepHours(value) {
   const text = String(value ?? "");
+  const hoursMatch = text.match(/(\d+(?:[.,]\d+)?)\s*h/i);
+  const minutesMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(?:min|m\b)/i);
+  if (hoursMatch) {
+    const hours = Number.parseFloat(hoursMatch[1].replace(",", "."));
+    const minutes = minutesMatch ? Number.parseFloat(minutesMatch[1].replace(",", ".")) : 0;
+    return hours + minutes / 60;
+  }
   const number = parseNumber(text);
-  if (number === null) return null;
-  return /h/i.test(text) ? number : number / 60;
+  return number === null ? null : number / 60;
 }
 
 function buildDailySummary(data, datasets) {
@@ -433,7 +439,7 @@ async function recentOwnerRows(connectors, table, ownerId, select, order, limit 
 
 async function contextForAnalysis(connectors, ownerId) {
   const id = requireOwnerId(ownerId);
-  const [profile, exams, weight, sleep, exercise] = await Promise.all([
+  const [profile, exams, weight, sleep, exercise, food, hydration] = await Promise.all([
     getContextRow(connectors, id),
     recentOwnerRows(
       connectors,
@@ -460,6 +466,22 @@ async function contextForAnalysis(connectors, ownerId) {
       "data.desc",
       5,
     ),
+    recentOwnerRows(
+      connectors,
+      "alimentacao",
+      id,
+      "data,horario,item,quantidade",
+      "data.desc,horario.desc",
+      10,
+    ),
+    recentOwnerRows(
+      connectors,
+      "hidratacao",
+      id,
+      "data,horario,item,quantidade",
+      "data.desc,horario.desc",
+      10,
+    ),
   ]);
 
   return {
@@ -468,7 +490,7 @@ async function contextForAnalysis(connectors, ownerId) {
     confirmed_exams: exams.filter(
       (exam) => exam.status === undefined || exam.status === "confirmed",
     ),
-    recent: { weight, sleep, exercise },
+    recent: { weight, sleep, exercise, food, hydration },
     local_now: saoPauloNow(),
   };
 }
@@ -573,6 +595,58 @@ export async function reviewHealthExam(connectors, payload) {
     );
   }
   return { ok: true, exam };
+}
+
+async function listChatMessages(connectors, ownerId) {
+  const params = new URLSearchParams({
+    select: "client_id,role,kind,payload,sequence,created_at",
+    owner_id: `eq.${requireOwnerId(ownerId)}`,
+    order: "sequence.asc,created_at.asc",
+    limit: "100",
+  });
+  const response = await supabaseRequest(
+    connectors,
+    `/rest/v1/health_chat_messages?${params.toString()}`,
+  );
+  return { ok: true, messages: await response.json() };
+}
+
+async function saveChatMessages(connectors, payload) {
+  const ownerId = requireOwnerId(payload.owner_id);
+  const messages = Array.isArray(payload.messages) ? payload.messages.slice(-100) : [];
+  if (messages.length === 0) return { ok: true, saved: 0 };
+
+  const rows = messages
+    .filter(
+      (message) =>
+        message &&
+        ["user", "assistant"].includes(message.role) &&
+        ["text", "image", "validation"].includes(message.kind),
+    )
+    .map((message, index) => ({
+      owner_id: ownerId,
+      client_id: String(message.client_id ?? "").slice(0, 100),
+      role: message.role,
+      kind: message.kind,
+      payload: message.payload && typeof message.payload === "object" ? message.payload : {},
+      sequence: Number.isInteger(message.sequence) ? message.sequence : index,
+    }))
+    .filter((message) => message.client_id);
+
+  if (rows.length === 0) return { ok: true, saved: 0 };
+  await supabaseRequest(
+    connectors,
+    "/rest/v1/health_chat_messages?on_conflict=owner_id,client_id",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(rows),
+    },
+  );
+  return { ok: true, saved: rows.length };
 }
 
 async function userByEmail(connectors, email) {
@@ -735,6 +809,13 @@ async function main() {
   }
   if (action === "review-exam") {
     return reviewHealthExam(connectors, await readJsonInput());
+  }
+  if (action === "list-chat") {
+    const payload = await readJsonInput();
+    return listChatMessages(connectors, payload.owner_id);
+  }
+  if (action === "save-chat") {
+    return saveChatMessages(connectors, await readJsonInput());
   }
   if (action === "user-by-email") {
     const payload = await readJsonInput();

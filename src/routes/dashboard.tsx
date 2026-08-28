@@ -99,7 +99,7 @@ function DashboardPage() {
                 <MiniCard
                   icon={<Moon className="size-4" />}
                   label="Sono"
-                  value={data.sono_horas !== null ? `${data.sono_horas}h` : "—"}
+                  value={data.sono_horas !== null ? formatSleepHours(data.sono_horas) : "—"}
                 />
                 <MiniCard
                   icon={<Scale className="size-4" />}
@@ -135,6 +135,13 @@ function DashboardPage() {
       </div>
     </AppShell>
   );
+}
+
+function formatSleepHours(hours: number) {
+  const totalMinutes = Math.round(hours * 60);
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `${wholeHours}h ${minutes}min` : `${wholeHours}h`;
 }
 
 function Card({ children }: { children: React.ReactNode }) {
