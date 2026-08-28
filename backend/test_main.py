@@ -115,6 +115,44 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
             "não informado",
         )
 
+    async def test_keeps_mixed_food_and_hydration_in_separate_groups(self) -> None:
+        response = gemini_response(
+            {
+                "grupos": [
+                    {
+                        "evento_tipo": "alimentacao",
+                        "itens": [
+                            {
+                                "item": "arroz",
+                                "quantidade_estimada": "1 porção",
+                                "confirmado": True,
+                            }
+                        ],
+                    },
+                    {
+                        "evento_tipo": "hidratacao",
+                        "itens": [
+                            {
+                                "item": "água",
+                                "quantidade_estimada": "500ml",
+                                "confirmado": True,
+                            }
+                        ],
+                    },
+                ]
+            }
+        )
+        with patch.object(main, "call_gemini_sync", return_value=response):
+            result = await main.analyze_with_gemini(
+                main.ProcessInputRequest(text="comi arroz e bebi 500ml de água")
+            )
+
+        groups = {group["evento_tipo"]: group["itens"] for group in result["grupos"]}
+        self.assertEqual(set(groups), {"alimentacao", "hidratacao"})
+        self.assertEqual([item["item"] for item in groups["alimentacao"]], ["arroz"])
+        self.assertEqual([item["item"] for item in groups["hidratacao"]], ["água"])
+        self.assertEqual(groups["hidratacao"][0]["quantidade_estimada"], "500ml")
+
     async def test_maps_empty_gemini_response_to_safe_error(self) -> None:
         with patch.object(main, "call_gemini_sync", return_value={"candidates": []}):
             with self.assertRaisesRegex(HTTPException, "resposta vazia"):

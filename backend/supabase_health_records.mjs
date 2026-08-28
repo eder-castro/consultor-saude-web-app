@@ -187,8 +187,17 @@ function normalizeRecords(payload) {
     .map((item) => normalizeEventRecord(item, eventType, now));
 }
 
-async function saveRecords(connectors) {
-  const payload = await readJsonInput();
+function groupEntriesByTable(entries) {
+  const groups = new Map();
+  for (const entry of entries) {
+    const group = groups.get(entry.table) ?? [];
+    group.push(entry);
+    groups.set(entry.table, group);
+  }
+  return groups;
+}
+
+export async function saveRecordsPayload(connectors, payload) {
   const entries = normalizeRecords(payload);
 
   if (entries.length === 0) {
@@ -199,12 +208,7 @@ async function saveRecords(connectors) {
     );
   }
 
-  const groups = new Map();
-  for (const entry of entries) {
-    const group = groups.get(entry.table) ?? [];
-    group.push(entry);
-    groups.set(entry.table, group);
-  }
+  const groups = groupEntriesByTable(entries);
   await Promise.all(
     [...groups.entries()].map(([table, group]) =>
       supabaseRequest(connectors, `/rest/v1/${table}`, {
@@ -219,6 +223,10 @@ async function saveRecords(connectors) {
   );
 
   return { ok: true, saved: entries.length };
+}
+
+async function saveRecords(connectors) {
+  return saveRecordsPayload(connectors, await readJsonInput());
 }
 
 function parseMetric(value, units) {
@@ -362,14 +370,16 @@ async function main() {
   throw new SupabaseRecordsError("unknown_action", "Ação do Supabase não reconhecida.", 400);
 }
 
-try {
-  process.stdout.write(JSON.stringify(await main()));
-} catch (error) {
-  const code = error instanceof SupabaseRecordsError ? error.code : "unexpected_error";
-  const message =
-    error instanceof Error ? error.message : "Falha inesperada ao acessar o Supabase.";
-  const status = error instanceof SupabaseRecordsError ? error.status : 502;
+if (import.meta.main) {
+  try {
+    process.stdout.write(JSON.stringify(await main()));
+  } catch (error) {
+    const code = error instanceof SupabaseRecordsError ? error.code : "unexpected_error";
+    const message =
+      error instanceof Error ? error.message : "Falha inesperada ao acessar o Supabase.";
+    const status = error instanceof SupabaseRecordsError ? error.status : 502;
 
-  process.stdout.write(JSON.stringify({ ok: false, error: { code, message, status } }));
-  process.exitCode = 1;
+    process.stdout.write(JSON.stringify({ ok: false, error: { code, message, status } }));
+    process.exitCode = 1;
+  }
 }
