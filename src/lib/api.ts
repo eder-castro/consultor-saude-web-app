@@ -6,6 +6,7 @@ import {
   type DailySummary,
   type EventoTipo,
   type Item,
+  type ValidationGroup,
   type ValidationPayload,
 } from "./api-schemas";
 import { getMockSummary, recordItems } from "./mock-store";
@@ -37,70 +38,125 @@ function detectTipo(text: string): EventoTipo {
   return "alimentacao";
 }
 
+function makeGroup(evento_tipo: EventoTipo, itens: Item[]): ValidationGroup {
+  return { evento_tipo, itens };
+}
+
 function mockProcess(input: { text?: string; imageBase64?: string }): ValidationPayload {
   const text = input.text ?? "";
   if (input.imageBase64) {
     return {
-      evento_tipo: "alimentacao",
-      itens: [
-        { id: uid(), item: "Arroz Integral", quantidade_estimada: "3 colheres", confirmado: true },
-        { id: uid(), item: "Feijão Carioca", quantidade_estimada: "1 concha", confirmado: true },
-        { id: uid(), item: "Frango Grelhado", quantidade_estimada: "150g", confirmado: true },
-        {
-          id: uid(),
-          item: "Salada Verde",
-          quantidade_estimada: "1 prato pequeno",
-          confirmado: true,
-        },
+      grupos: [
+        makeGroup("alimentacao", [
+          {
+            id: uid(),
+            item: "Arroz Integral",
+            quantidade_estimada: "3 colheres",
+            confirmado: true,
+          },
+          { id: uid(), item: "Feijão Carioca", quantidade_estimada: "1 concha", confirmado: true },
+          { id: uid(), item: "Frango Grelhado", quantidade_estimada: "150g", confirmado: true },
+          {
+            id: uid(),
+            item: "Salada Verde",
+            quantidade_estimada: "1 prato pequeno",
+            confirmado: true,
+          },
+        ]),
       ],
       resumo: "Refeição equilibrada detectada na imagem.",
     };
   }
+
+  const hasHydration = /(água|agua|hidrata|bebi|copos?|litros?|ml)/i.test(text);
+  const hasFood =
+    /(comi|almoc|almoç|jantei|café|cafe da manhã|lanche|refei|arroz|feijão|feijao|frango|salada|pão|pao)/i.test(
+      text,
+    );
+  if (hasHydration && hasFood) {
+    const foodMatch = text.match(
+      /(?:comi|almocei|almoçei|jantei|tomei café|tomei cafe|lanchei)\s+(.+?)(?=\s+e\s+(?:bebi|tomei)\b|$)/i,
+    );
+    const waterMatch = text.match(/(\d+(?:[.,]\d+)?)\s*(ml|l|litros?|copos?)/i);
+    return {
+      grupos: [
+        makeGroup("alimentacao", [
+          {
+            id: uid(),
+            item: foodMatch?.[1]?.trim() || "Alimento",
+            quantidade_estimada: "1 porção",
+            confirmado: true,
+          },
+        ]),
+        makeGroup("hidratacao", [
+          {
+            id: uid(),
+            item: "Água",
+            quantidade_estimada: waterMatch ? `${waterMatch[1]}${waterMatch[2]}` : "300ml",
+            confirmado: true,
+          },
+        ]),
+      ],
+    };
+  }
+
   const tipo = detectTipo(text);
   switch (tipo) {
     case "hidratacao": {
       const m = text.match(/(\d+(?:[.,]\d+)?)\s*(ml|l|litros?|copos?)/i);
       const qty = m ? `${m[1]}${m[2]}` : "300ml";
       return {
-        evento_tipo: "hidratacao",
-        itens: [{ id: uid(), item: "Água", quantidade_estimada: qty, confirmado: true }],
+        grupos: [
+          makeGroup("hidratacao", [
+            { id: uid(), item: "Água", quantidade_estimada: qty, confirmado: true },
+          ]),
+        ],
       };
     }
     case "sono": {
       const m = text.match(/(\d+(?:[.,]\d+)?)\s*h/i);
       return {
-        evento_tipo: "sono",
-        itens: [
-          { id: uid(), item: "Sono", quantidade_estimada: `${m?.[1] ?? "7"}h`, confirmado: true },
+        grupos: [
+          makeGroup("sono", [
+            { id: uid(), item: "Sono", quantidade_estimada: `${m?.[1] ?? "7"}h`, confirmado: true },
+          ]),
         ],
       };
     }
     case "peso": {
       const m = text.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
       return {
-        evento_tipo: "peso",
-        itens: [
-          { id: uid(), item: "Peso", quantidade_estimada: `${m?.[1] ?? "70"}kg`, confirmado: true },
+        grupos: [
+          makeGroup("peso", [
+            {
+              id: uid(),
+              item: "Peso",
+              quantidade_estimada: `${m?.[1] ?? "70"}kg`,
+              confirmado: true,
+            },
+          ]),
         ],
       };
     }
     case "exercicio":
       return {
-        evento_tipo: "exercicio",
-        itens: [
-          { id: uid(), item: "Caminhada", quantidade_estimada: "30 minutos", confirmado: true },
+        grupos: [
+          makeGroup("exercicio", [
+            { id: uid(), item: "Caminhada", quantidade_estimada: "30 minutos", confirmado: true },
+          ]),
         ],
       };
     default:
       return {
-        evento_tipo: "alimentacao",
-        itens: [
-          {
-            id: uid(),
-            item: text.slice(0, 40) || "Item",
-            quantidade_estimada: "1 porção",
-            confirmado: true,
-          },
+        grupos: [
+          makeGroup("alimentacao", [
+            {
+              id: uid(),
+              item: text.slice(0, 40) || "Item",
+              quantidade_estimada: "1 porção",
+              confirmado: true,
+            },
+          ]),
         ],
       };
   }
@@ -127,13 +183,15 @@ export async function processInput(input: {
   return ValidationPayloadSchema.parse(json);
 }
 
-export async function saveRecords(payload: {
-  evento_tipo: EventoTipo;
-  itens: Item[];
-}): Promise<{ ok: true }> {
+export async function saveRecords(payload: { grupos: ValidationGroup[] }): Promise<{ ok: true }> {
   if (isMockMode()) {
     await sleep(400);
-    recordItems(payload.evento_tipo, payload.itens);
+    for (const grupo of payload.grupos) {
+      recordItems(
+        grupo.evento_tipo,
+        grupo.itens.filter((item) => item.confirmado),
+      );
+    }
     return { ok: true };
   }
   const json = await fetchApi("/save-records", {

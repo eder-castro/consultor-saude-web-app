@@ -18,9 +18,14 @@ export const ItemSchema = z.object({
 });
 export type Item = z.infer<typeof ItemSchema>;
 
-export const ValidationPayloadSchema = z.object({
+export const ValidationGroupSchema = z.object({
   evento_tipo: EventoTipo,
   itens: z.array(ItemSchema).min(1),
+});
+export type ValidationGroup = z.infer<typeof ValidationGroupSchema>;
+
+export const ValidationPayloadSchema = z.object({
+  grupos: z.array(ValidationGroupSchema).min(1),
   resumo: z.string().optional(),
 });
 export type ValidationPayload = z.infer<typeof ValidationPayloadSchema>;

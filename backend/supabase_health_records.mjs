@@ -152,17 +152,33 @@ function normalizeEventRecord(record, eventType, now) {
   };
 }
 
+function requireEventType(value) {
+  if (!EVENT_TYPES.has(value)) {
+    throw new SupabaseRecordsError(
+      "invalid_event_type",
+      `Tipo de registro inválido: ${String(value ?? "não informado")}.`,
+      422,
+    );
+  }
+  return value;
+}
+
 function normalizeRecords(payload) {
   const now = saoPauloNow();
 
   if (Array.isArray(payload.records) && payload.records.length > 0) {
     return payload.records.map((record) =>
-      normalizeEventRecord(
-        record,
-        EVENT_TYPES.has(record.evento_tipo) ? record.evento_tipo : "outro",
-        now,
-      ),
+      normalizeEventRecord(record, requireEventType(record.evento_tipo), now),
     );
+  }
+
+  if (Array.isArray(payload.grupos) && payload.grupos.length > 0) {
+    return payload.grupos.flatMap((group) => {
+      const eventType = requireEventType(group.evento_tipo);
+      return (group.itens ?? [])
+        .filter((item) => item.confirmado !== false)
+        .map((item) => normalizeEventRecord(item, eventType, now));
+    });
   }
 
   const eventType = EVENT_TYPES.has(payload.evento_tipo) ? payload.evento_tipo : "outro";

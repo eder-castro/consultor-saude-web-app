@@ -54,6 +54,7 @@ class SaveRecordsRequest(BaseModel):
     evento_tipo: str | None = None
     itens: list[dict[str, Any]] = Field(default_factory=list)
     records: list[dict[str, Any]] = Field(default_factory=list)
+    grupos: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class GeminiItem(BaseModel):
@@ -62,9 +63,13 @@ class GeminiItem(BaseModel):
     confirmado: bool = True
 
 
-class GeminiPayload(BaseModel):
+class GeminiGroup(BaseModel):
     evento_tipo: str
     itens: list[GeminiItem] = Field(min_length=1, max_length=50)
+
+
+class GeminiPayload(BaseModel):
+    grupos: list[GeminiGroup] = Field(min_length=1, max_length=len(EVENT_TYPES))
     resumo: str | None = Field(default=None, max_length=500)
 
 
@@ -181,27 +186,31 @@ def gemini_schema() -> dict[str, Any]:
     return {
         "type": "OBJECT",
         "properties": {
-            "evento_tipo": {
-                "type": "STRING",
-                "enum": list(EVENT_TYPES),
-            },
-            "itens": {
+            "grupos": {
                 "type": "ARRAY",
-                "minItems": 1,
-                "maxItems": 50,
                 "items": {
                     "type": "OBJECT",
                     "properties": {
-                        "item": {"type": "STRING"},
-                        "quantidade_estimada": {"type": "STRING"},
-                        "confirmado": {"type": "BOOLEAN"},
+                        "evento_tipo": {"type": "STRING", "enum": list(EVENT_TYPES)},
+                        "itens": {
+                            "type": "ARRAY",
+                            "items": {
+                                "type": "OBJECT",
+                                "properties": {
+                                    "item": {"type": "STRING"},
+                                    "quantidade_estimada": {"type": "STRING"},
+                                    "confirmado": {"type": "BOOLEAN"},
+                                },
+                                "required": ["item", "quantidade_estimada", "confirmado"],
+                            },
+                        },
                     },
-                    "required": ["item", "quantidade_estimada", "confirmado"],
+                    "required": ["evento_tipo", "itens"],
                 },
             },
             "resumo": {"type": "STRING"},
         },
-        "required": ["evento_tipo", "itens"],
+        "required": ["grupos"],
     }
 
 
@@ -218,13 +227,17 @@ Interprete o conteúdo abaixo e extraia somente fatos explicitamente observados.
 Não dê diagnóstico, recomendação médica ou informação nutricional.
 Não invente itens ou quantidades; quando a quantidade não estiver clara, use "não informado".
 
-Classifique o registro em exatamente um tipo:
+Classifique cada fato observado em um tipo:
 - alimentacao: refeições, alimentos ou bebidas que não sejam apenas água;
 - hidratacao: água, copos de água ou volume de água;
 - exercicio: atividade física;
 - sono: período ou qualidade do sono;
 - peso: peso corporal;
 - outro: quando não se encaixar nos tipos anteriores.
+Uma mensagem pode conter mais de um tipo. Nesse caso, não use um único tipo para
+toda a mensagem: crie um grupo separado por tipo em "grupos". Cada item deve
+aparecer em exatamente um grupo. Por exemplo, "comi arroz e bebi água" deve
+gerar um grupo alimentacao com arroz e um grupo hidratacao com água.
 
 Retorne apenas o JSON no formato solicitado.
 
@@ -360,22 +373,30 @@ async def analyze_with_gemini(body: ProcessInputRequest) -> dict[str, Any]:
             detail="O Gemini retornou dados fora do formato esperado.",
         ) from error
 
-    if parsed.evento_tipo not in EVENT_TYPES:
-        raise HTTPException(
-            status_code=502,
-            detail="O Gemini retornou um tipo de registro inválido.",
-        )
+    groups_by_type: dict[str, list[GeminiItem]] = {}
+    for group in parsed.grupos:
+        if group.evento_tipo not in EVENT_TYPES:
+            raise HTTPException(
+                status_code=502,
+                detail="O Gemini retornou um tipo de registro inválido.",
+            )
+        groups_by_type.setdefault(group.evento_tipo, []).extend(group.itens)
 
     return {
-        "evento_tipo": parsed.evento_tipo,
-        "itens": [
+        "grupos": [
             {
-                "id": str(uuid4()),
-                "item": item.item.strip(),
-                "quantidade_estimada": item.quantidade_estimada.strip() or "não informado",
-                "confirmado": item.confirmado,
+                "evento_tipo": evento_tipo,
+                "itens": [
+                    {
+                        "id": str(uuid4()),
+                        "item": item.item.strip(),
+                        "quantidade_estimada": item.quantidade_estimada.strip() or "não informado",
+                        "confirmado": item.confirmado,
+                    }
+                    for item in itens
+                ],
             }
-            for item in parsed.itens
+            for evento_tipo, itens in groups_by_type.items()
         ],
         **({"resumo": parsed.resumo} if parsed.resumo else {}),
     }
