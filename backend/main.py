@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
+GEMINI_FALLBACK_MODEL = os.environ.get("GEMINI_FALLBACK_MODEL", "gemini-3.5-flash")
 SUPABASE_HELPER = Path(__file__).with_name("supabase_health_records.mjs")
 SUPABASE_TIMEOUT_SECONDS = 30
 GEMINI_TIMEOUT_SECONDS = int(os.environ.get("GEMINI_TIMEOUT_SECONDS", "90"))
@@ -490,59 +491,80 @@ Retorne apenas o JSON no formato solicitado.
 """.strip()
 
 
-def call_gemini_sync(payload: dict[str, Any]) -> Any:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
-    )
-    request_body = json.dumps(payload).encode("utf-8")
+def is_gemini_quota_error(detail: str) -> bool:
+    normalized = detail.lower()
+    return "quota" in normalized or "rate limit" in normalized
 
-    for attempt in range(3):
-        request = urllib.request.Request(
-            url,
-            data=request_body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+
+def call_gemini_sync(payload: dict[str, Any]) -> Any:
+    request_body = json.dumps(payload).encode("utf-8")
+    models = [GEMINI_MODEL]
+    if GEMINI_FALLBACK_MODEL and GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
+        models.append(GEMINI_FALLBACK_MODEL)
+
+    for model_index, model in enumerate(models):
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent?key={GEMINI_API_KEY}"
         )
-        try:
-            with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT_SECONDS) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode("utf-8", errors="replace")[:300]
-            logger.warning(
-                "Gemini respondeu HTTP %s na tentativa %s: %s",
-                error.code,
-                attempt + 1,
-                detail,
+        for attempt in range(3):
+            request = urllib.request.Request(
+                url,
+                data=request_body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
             )
-            if error.code in {429, 503} and attempt < 2:
-                time.sleep(2**attempt)
-                continue
-            if error.code == 429:
+            try:
+                with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT_SECONDS) as response:
+                    return json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as error:
+                detail = error.read().decode("utf-8", errors="replace")[:300]
+                logger.warning(
+                    "Gemini modelo %s respondeu HTTP %s na tentativa %s: %s",
+                    model,
+                    error.code,
+                    attempt + 1,
+                    detail,
+                )
+                if (
+                    error.code == 429
+                    and model_index < len(models) - 1
+                    and is_gemini_quota_error(detail)
+                ):
+                    logger.warning(
+                        "Cota do modelo Gemini %s atingida; tentando fallback %s.",
+                        model,
+                        models[model_index + 1],
+                    )
+                    break
+                if error.code in {429, 503} and attempt < 2:
+                    time.sleep(2**attempt)
+                    continue
+                if error.code == 429:
+                    raise HTTPException(
+                        status_code=429,
+                        detail="A cota ou o limite temporário do Gemini foi atingido. Tente novamente mais tarde.",
+                    ) from error
+                if error.code == 503:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="O Gemini está temporariamente sobrecarregado. Tente novamente em instantes.",
+                    ) from error
+                if error.code in {401, 403}:
+                    raise HTTPException(
+                        status_code=503,
+                        detail="A credencial do Gemini não está válida ou não tem permissão.",
+                    ) from error
                 raise HTTPException(
-                    status_code=429,
-                    detail="O limite temporário do Gemini foi atingido. Tente novamente em instantes.",
+                    status_code=502,
+                    detail="O Gemini não conseguiu processar a solicitação.",
                 ) from error
-            if error.code == 503:
+            except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+                logger.warning("Falha de comunicação com o Gemini: %s", error)
                 raise HTTPException(
-                    status_code=503,
-                    detail="O Gemini está temporariamente sobrecarregado. Tente novamente em instantes.",
+                    status_code=502,
+                    detail="Não foi possível comunicar com o Gemini.",
                 ) from error
-            if error.code in {401, 403}:
-                raise HTTPException(
-                    status_code=503,
-                    detail="A credencial do Gemini não está válida ou não tem permissão.",
-                ) from error
-            raise HTTPException(
-                status_code=502,
-                detail="O Gemini não conseguiu processar a solicitação.",
-            ) from error
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-            logger.warning("Falha de comunicação com o Gemini: %s", error)
-            raise HTTPException(
-                status_code=502,
-                detail="Não foi possível comunicar com o Gemini.",
-            ) from error
 
     raise HTTPException(status_code=503, detail="O Gemini está temporariamente indisponível.")
 

@@ -24,13 +24,13 @@ def gemini_response(payload: object) -> dict[str, object]:
     }
 
 
-def http_error(status: int) -> urllib.error.HTTPError:
+def http_error(status: int, body: bytes = b'{"error":{"message":"simulated"}}') -> urllib.error.HTTPError:
     return urllib.error.HTTPError(
         "https://generativelanguage.googleapis.com",
         status,
         "simulated Gemini error",
         {},
-        io.BytesIO(b'{"error":{"message":"simulated"}}'),
+        io.BytesIO(body),
     )
 
 
@@ -315,6 +315,26 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(urlopen.call_count, 3)
         self.assertEqual(sleep.call_count, 2)
+
+    def test_falls_back_when_primary_model_quota_is_exceeded(self) -> None:
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b'{"ok": true}'
+        quota_body = b'{"error":{"message":"You exceeded your current quota"}}'
+        with (
+            patch.object(main, "GEMINI_MODEL", "primary-model"),
+            patch.object(main, "GEMINI_FALLBACK_MODEL", "fallback-model"),
+            patch.object(
+                main.urllib.request,
+                "urlopen",
+                side_effect=[http_error(429, quota_body), response],
+            ) as urlopen,
+        ):
+            result = main.call_gemini_sync({})
+
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(urlopen.call_count, 2)
+        self.assertIn("fallback-model:generateContent", urlopen.call_args_list[1].args[0].full_url)
 
     def test_retries_temporary_503_then_returns_safe_error(self) -> None:
         with (
