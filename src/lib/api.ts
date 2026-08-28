@@ -46,7 +46,12 @@ function mockProcess(input: { text?: string; imageBase64?: string }): Validation
         { id: uid(), item: "Arroz Integral", quantidade_estimada: "3 colheres", confirmado: true },
         { id: uid(), item: "Feijão Carioca", quantidade_estimada: "1 concha", confirmado: true },
         { id: uid(), item: "Frango Grelhado", quantidade_estimada: "150g", confirmado: true },
-        { id: uid(), item: "Salada Verde", quantidade_estimada: "1 prato pequeno", confirmado: true },
+        {
+          id: uid(),
+          item: "Salada Verde",
+          quantidade_estimada: "1 prato pequeno",
+          confirmado: true,
+        },
       ],
       resumo: "Refeição equilibrada detectada na imagem.",
     };
@@ -90,7 +95,12 @@ function mockProcess(input: { text?: string; imageBase64?: string }): Validation
       return {
         evento_tipo: "alimentacao",
         itens: [
-          { id: uid(), item: text.slice(0, 40) || "Item", quantidade_estimada: "1 porção", confirmado: true },
+          {
+            id: uid(),
+            item: text.slice(0, 40) || "Item",
+            quantidade_estimada: "1 porção",
+            confirmado: true,
+          },
         ],
       };
   }

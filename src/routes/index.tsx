@@ -39,11 +39,7 @@ function ChatPage() {
             caption: s.caption,
           };
     const loadingId = uid();
-    setMessages((m) => [
-      ...m,
-      userMsg,
-      { id: loadingId, role: "assistant", kind: "loading" },
-    ]);
+    setMessages((m) => [...m, userMsg, { id: loadingId, role: "assistant", kind: "loading" }]);
 
     try {
       const payload =
@@ -104,7 +100,7 @@ function ChatPage() {
         <div className="min-h-0 flex-1 overflow-hidden">
           <ChatFeed messages={messages} onValidationResolved={resolveValidation} />
         </div>
-        
+
         {/* O Composer fica preso na parte inferior sem empurrar a tela */}
         <Composer disabled={busy} onSubmit={handleSubmit} />
       </div>

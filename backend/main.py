@@ -5,10 +5,10 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from datetime import date
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
 SUPABASE_HELPER = Path(__file__).with_name("supabase_health_records.mjs")
 SUPABASE_TIMEOUT_SECONDS = 30
@@ -43,8 +43,11 @@ app.add_middleware(
 
 class ProcessInputRequest(BaseModel):
     text: str | None = Field(default=None, max_length=MAX_TEXT_LENGTH)
-    image_base64: str | None = None
-    mime_type: str | None = None
+    image_base64: str | None = Field(
+        default=None,
+        max_length=(MAX_IMAGE_BYTES * 4 // 3) + 2048,
+    )
+    mime_type: str | None = Field(default=None, max_length=100)
 
 
 class SaveRecordsRequest(BaseModel):
@@ -63,10 +66,6 @@ class GeminiPayload(BaseModel):
     evento_tipo: str
     itens: list[GeminiItem] = Field(min_length=1, max_length=50)
     resumo: str | None = Field(default=None, max_length=500)
-
-
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
 
 
 def require_write_access(
@@ -238,39 +237,56 @@ def call_gemini_sync(payload: dict[str, Any]) -> dict[str, Any]:
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
     )
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
+    request_body = json.dumps(payload).encode("utf-8")
 
-    try:
-        with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT_SECONDS) as response:
-            return json.loads(response.read().decode("utf-8"))
-    except urllib.error.HTTPError as error:
-        detail = error.read().decode("utf-8", errors="replace")[:300]
-        logger.warning("Gemini respondeu HTTP %s: %s", error.code, detail)
-        if error.code == 429:
+    for attempt in range(3):
+        request = urllib.request.Request(
+            url,
+            data=request_body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=GEMINI_TIMEOUT_SECONDS) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as error:
+            detail = error.read().decode("utf-8", errors="replace")[:300]
+            logger.warning(
+                "Gemini respondeu HTTP %s na tentativa %s: %s",
+                error.code,
+                attempt + 1,
+                detail,
+            )
+            if error.code in {429, 503} and attempt < 2:
+                time.sleep(2**attempt)
+                continue
+            if error.code == 429:
+                raise HTTPException(
+                    status_code=429,
+                    detail="O limite temporário do Gemini foi atingido. Tente novamente em instantes.",
+                ) from error
+            if error.code == 503:
+                raise HTTPException(
+                    status_code=503,
+                    detail="O Gemini está temporariamente sobrecarregado. Tente novamente em instantes.",
+                ) from error
+            if error.code in {401, 403}:
+                raise HTTPException(
+                    status_code=503,
+                    detail="A credencial do Gemini não está válida ou não tem permissão.",
+                ) from error
             raise HTTPException(
-                status_code=429,
-                detail="O limite temporário do Gemini foi atingido. Tente novamente em instantes.",
+                status_code=502,
+                detail="O Gemini não conseguiu processar a solicitação.",
             ) from error
-        if error.code in {401, 403}:
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
+            logger.warning("Falha de comunicação com o Gemini: %s", error)
             raise HTTPException(
-                status_code=503,
-                detail="A credencial do Gemini não está válida ou não tem permissão.",
+                status_code=502,
+                detail="Não foi possível comunicar com o Gemini.",
             ) from error
-        raise HTTPException(
-            status_code=502,
-            detail="O Gemini não conseguiu processar a solicitação.",
-        ) from error
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as error:
-        logger.warning("Falha de comunicação com o Gemini: %s", error)
-        raise HTTPException(
-            status_code=502,
-            detail="Não foi possível comunicar com o Gemini.",
-        ) from error
+
+    raise HTTPException(status_code=503, detail="O Gemini está temporariamente indisponível.")
 
 
 def extract_gemini_text(response: dict[str, Any]) -> str:
@@ -366,7 +382,10 @@ async def analyze_with_gemini(body: ProcessInputRequest) -> dict[str, Any]:
 
 
 @app.post("/process-input")
-async def process_input(body: ProcessInputRequest):
+async def process_input(
+    body: ProcessInputRequest,
+    _: Annotated[None, Depends(require_write_access)],
+):
     return await analyze_with_gemini(body)
 
 
