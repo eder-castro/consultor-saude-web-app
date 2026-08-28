@@ -11,6 +11,7 @@ test("routes mixed food and hydration groups to their own tables", async () => {
   };
 
   const result = await saveRecordsPayload(connectors, {
+    owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
     grupos: [
       {
         evento_tipo: "alimentacao",
@@ -44,12 +45,14 @@ test("routes mixed food and hydration groups to their own tables", async () => {
         item: "arroz",
         quantidade: "1 porção",
         evento_tipo: "alimentacao",
+        owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
       }),
     ],
     [
       expect.objectContaining({
         item: "água",
         quantidade: "500ml",
+        owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
       }),
     ],
   ]);

@@ -1,28 +1,31 @@
 import base64
 import asyncio
+import hashlib
 import hmac
 import json
 import logging
 import os
 import re
+import secrets
 import time
 import urllib.error
 import urllib.request
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
-SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
 SUPABASE_HELPER = Path(__file__).with_name("supabase_health_records.mjs")
 SUPABASE_TIMEOUT_SECONDS = 30
 GEMINI_TIMEOUT_SECONDS = 30
+SESSION_TTL_DAYS = 30
+SESSION_COOKIE_NAME = "health_session"
 MAX_TEXT_LENGTH = 12_000
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
@@ -32,9 +35,19 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Consultor de Saúde API")
 
+configured_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if not configured_origins:
+    configured_origins = ["http://localhost:5000", "http://127.0.0.1:5000"]
+if os.environ.get("REPLIT_DEV_DOMAIN"):
+    configured_origins.append(f"https://{os.environ['REPLIT_DEV_DOMAIN']}")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=sorted(set(configured_origins)),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,6 +70,11 @@ class SaveRecordsRequest(BaseModel):
     grupos: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class CredentialsRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=128)
+
+
 class GeminiItem(BaseModel):
     item: str = Field(min_length=1, max_length=200)
     quantidade_estimada: str = Field(default="não informado", max_length=100)
@@ -73,22 +91,225 @@ class GeminiPayload(BaseModel):
     resumo: str | None = Field(default=None, max_length=500)
 
 
-def require_write_access(
-    authorization: Annotated[str | None, Header()] = None,
-) -> None:
-    if not SESSION_SECRET:
+def normalize_email(email: str) -> str:
+    normalized = email.strip().lower()
+    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized):
+        raise HTTPException(
+            status_code=422,
+            detail="Informe um e-mail válido.",
+        )
+    return normalized
+
+
+def invited_emails() -> set[str]:
+    raw = os.environ.get("INVITED_EMAILS", "")
+    return {
+        email.strip().lower()
+        for email in re.split(r"[,;\n]+", raw)
+        if email.strip()
+    }
+
+
+def hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    derived = hashlib.scrypt(
+        password.encode("utf-8"),
+        salt=salt,
+        n=2**14,
+        r=8,
+        p=1,
+        dklen=64,
+    )
+    return f"scrypt$16384$8$1${salt.hex()}${derived.hex()}"
+
+
+def verify_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, n_value, r_value, p_value, salt_hex, digest_hex = encoded.split("$")
+        if algorithm != "scrypt":
+            return False
+        derived = hashlib.scrypt(
+            password.encode("utf-8"),
+            salt=bytes.fromhex(salt_hex),
+            n=int(n_value),
+            r=int(r_value),
+            p=int(p_value),
+            dklen=len(bytes.fromhex(digest_hex)),
+        )
+        return hmac.compare_digest(derived.hex(), digest_hex)
+    except (ValueError, TypeError):
+        return False
+
+
+def hash_session_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def new_session() -> tuple[str, str, str]:
+    token = secrets.token_urlsafe(32)
+    token_hash = hash_session_token(token)
+    expires_at = (datetime.now(timezone.utc) + timedelta(days=SESSION_TTL_DAYS)).isoformat()
+    return token, token_hash, expires_at
+
+
+def auth_error(detail: str = "Sessão ausente ou expirada.") -> HTTPException:
+    return HTTPException(
+        status_code=401,
+        detail=detail,
+        headers={"WWW-Authenticate": "Session"},
+    )
+
+
+async def current_user(
+    request: Request,
+    session_cookie: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
+) -> dict[str, Any]:
+    if not session_cookie:
+        raise auth_error()
+
+    result = await run_supabase_helper(
+        "session-user",
+        payload={"token_hash": hash_session_token(session_cookie)},
+    )
+    user = result.get("user")
+    if not isinstance(user, dict) or not user.get("id") or not user.get("email"):
+        raise auth_error()
+    request.state.user = user
+    return user
+
+
+def set_session_cookie(response: Response, token: str, expires_at: str) -> None:
+    max_age = max(
+        0,
+        int(
+            (
+                datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                - datetime.now(timezone.utc)
+            ).total_seconds()
+        ),
+    )
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=token,
+        max_age=max_age,
+        expires=max_age,
+        httponly=True,
+        secure=os.environ.get("COOKIE_SECURE", "true").lower() != "false",
+        samesite="lax",
+        path="/",
+    )
+
+
+async def create_authenticated_session(user: dict[str, Any], response: Response) -> dict[str, Any]:
+    token, token_hash, expires_at = new_session()
+    await run_supabase_helper(
+        "create-session",
+        payload={
+            "user_id": user["id"],
+            "token_hash": token_hash,
+            "expires_at": expires_at,
+        },
+    )
+    set_session_cookie(response, token, expires_at)
+    return {"id": user["id"], "email": user["email"]}
+
+
+async def register_user(body: CredentialsRequest, response: Response) -> dict[str, Any]:
+    email = normalize_email(body.email)
+    invited = invited_emails()
+    if not invited:
         raise HTTPException(
             status_code=503,
-            detail="A autenticação de escrita não está configurada.",
+            detail="O cadastro ainda não está configurado. Adicione e-mails convidados ao Secret INVITED_EMAILS.",
+        )
+    if email not in invited:
+        raise HTTPException(
+            status_code=403,
+            detail="Este e-mail não está na lista de convidados.",
         )
 
-    scheme, _, token = (authorization or "").partition(" ")
-    if scheme.lower() != "bearer" or not hmac.compare_digest(token, SESSION_SECRET):
-        raise HTTPException(
-            status_code=401,
-            detail="Bearer token inválido ou ausente.",
-            headers={"WWW-Authenticate": "Bearer"},
+    primary_owner = normalize_email(os.environ["PRIMARY_OWNER_EMAIL"]) if os.environ.get(
+        "PRIMARY_OWNER_EMAIL"
+    ) else ""
+    existing = await run_supabase_helper("user-by-email", payload={"email": email})
+    existing_user = existing.get("user")
+    if isinstance(existing_user, dict):
+        pending_owner = (
+            email == primary_owner
+            and isinstance(existing_user.get("password_hash"), str)
+            and existing_user["password_hash"].startswith("pending$")
         )
+        if not pending_owner:
+            raise HTTPException(status_code=409, detail="Já existe uma conta para este e-mail.")
+        activated = await run_supabase_helper(
+            "activate-user",
+            payload={
+                "user_id": existing_user["id"],
+                "expected_password_hash": existing_user["password_hash"],
+                "password_hash": hash_password(body.password),
+            },
+        )
+        user = activated.get("user")
+    else:
+        created = await run_supabase_helper(
+            "create-user",
+            payload={"email": email, "password_hash": hash_password(body.password)},
+        )
+        user = created.get("user")
+
+    if not isinstance(user, dict) or not user.get("id"):
+        raise HTTPException(status_code=502, detail="Não foi possível criar a conta.")
+
+    if primary_owner and email == primary_owner:
+        await run_supabase_helper("claim-owner", payload={"owner_id": user["id"]})
+
+    return await create_authenticated_session(user, response)
+
+
+@app.post("/auth/register")
+async def auth_register(body: CredentialsRequest, response: Response):
+    return await register_user(body, response)
+
+
+@app.post("/auth/login")
+async def auth_login(body: CredentialsRequest, response: Response):
+    email = normalize_email(body.email)
+    result = await run_supabase_helper("user-by-email", payload={"email": email})
+    user = result.get("user")
+    if (
+        not isinstance(user, dict)
+        or not user.get("id")
+        or not isinstance(user.get("password_hash"), str)
+        or not verify_password(body.password, user["password_hash"])
+    ):
+        raise auth_error("E-mail ou senha inválidos.")
+    return await create_authenticated_session(user, response)
+
+
+@app.get("/auth/me")
+async def auth_me(user: Annotated[dict[str, Any], Depends(current_user)]):
+    return {"id": user["id"], "email": user["email"]}
+
+
+@app.post("/auth/logout")
+async def auth_logout(
+    response: Response,
+    session_cookie: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
+):
+    if session_cookie:
+        await run_supabase_helper(
+            "revoke-session",
+            payload={"token_hash": hash_session_token(session_cookie)},
+        )
+    response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
+    return {"ok": True}
+
+
+def require_authenticated_user(
+    user: Annotated[dict[str, Any], Depends(current_user)],
+) -> dict[str, Any]:
+    return user
+
 
 async def run_json_helper(
     command: list[str],
@@ -161,7 +382,43 @@ async def run_supabase_helper(
         payload=payload,
         timeout_seconds=timeout_seconds,
         connector_name="Supabase",
+        error_statuses={"user_exists": 409},
     )
+
+
+@app.post("/process-input")
+async def process_input(
+    body: ProcessInputRequest,
+    _: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+):
+    return await analyze_with_gemini(body)
+
+
+@app.post("/save-records")
+async def save_records(
+    body: SaveRecordsRequest,
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+):
+    payload = body.model_dump()
+    payload["owner_id"] = user["id"]
+    return await run_supabase_helper("save", payload=payload)
+
+
+@app.get("/daily-summary")
+async def daily_summary(
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+    data: date | None = None,
+):
+    return await run_supabase_helper(
+        "summary",
+        payload={"owner_id": user["id"]},
+        argument=data.isoformat() if data else None,
+    )
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 def clean_base64_image(value: str) -> str:
@@ -412,37 +669,6 @@ async def analyze_with_gemini(body: ProcessInputRequest) -> dict[str, Any]:
         ],
         **({"resumo": parsed.resumo} if parsed.resumo else {}),
     }
-
-
-@app.post("/process-input")
-async def process_input(
-    body: ProcessInputRequest,
-    _: Annotated[None, Depends(require_write_access)],
-):
-    return await analyze_with_gemini(body)
-
-
-@app.post("/save-records")
-async def save_records(
-    body: SaveRecordsRequest,
-    _: Annotated[None, Depends(require_write_access)],
-):
-    return await run_supabase_helper(
-        "save",
-        payload=body.model_dump(),
-    )
-
-@app.get("/daily-summary")
-async def daily_summary(data: date | None = None):
-    return await run_supabase_helper(
-        "summary",
-        argument=data.isoformat() if data else None,
-    )
-
-
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
 
 
 if __name__ == "__main__":

@@ -5,6 +5,16 @@ const CONNECTOR_NAME = "supabase";
 const ALIMENTACAO_TABLE = "alimentacao";
 const TIME_ZONE = "America/Sao_Paulo";
 const EVENT_TYPES = new Set(["alimentacao", "hidratacao", "exercicio", "sono", "peso", "outro"]);
+const HEALTH_TABLES = [
+  "alimentacao",
+  "hidratacao",
+  "exercicios",
+  "sono",
+  "peso",
+  "midias",
+  "analise",
+  "log_json",
+];
 
 class SupabaseRecordsError extends Error {
   constructor(code, message, status = 502) {
@@ -62,7 +72,19 @@ function normalizeNullable(value) {
   return String(value);
 }
 
-function normalizeEventRecord(record, eventType, now) {
+function requireOwnerId(value) {
+  const ownerId = String(value ?? "").trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ownerId)) {
+    throw new SupabaseRecordsError(
+      "invalid_owner",
+      "O usuário autenticado não possui um identificador válido.",
+      401,
+    );
+  }
+  return ownerId;
+}
+
+function normalizeEventRecord(record, eventType, now, ownerId) {
   const importKey = record.import_key ?? `app:${randomUUID()}`;
   const data = record.data ?? now.data;
   const horario = record.horario ?? now.horario;
@@ -76,6 +98,7 @@ function normalizeEventRecord(record, eventType, now) {
     return {
       table: "hidratacao",
       record: {
+        owner_id: ownerId,
         import_key: importKey,
         data,
         horario,
@@ -91,6 +114,7 @@ function normalizeEventRecord(record, eventType, now) {
     return {
       table: "exercicios",
       record: {
+        owner_id: ownerId,
         import_key: importKey,
         data,
         tipo: item,
@@ -107,6 +131,7 @@ function normalizeEventRecord(record, eventType, now) {
     return {
       table: "sono",
       record: {
+        owner_id: ownerId,
         import_key: importKey,
         data,
         inicio: normalizeNullable(record.inicio),
@@ -126,6 +151,7 @@ function normalizeEventRecord(record, eventType, now) {
     return {
       table: "peso",
       record: {
+        owner_id: ownerId,
         import_key: importKey,
         data,
         horario,
@@ -139,6 +165,7 @@ function normalizeEventRecord(record, eventType, now) {
   return {
     table: ALIMENTACAO_TABLE,
     record: {
+      owner_id: ownerId,
       import_key: importKey,
       data,
       horario,
@@ -165,10 +192,11 @@ function requireEventType(value) {
 
 function normalizeRecords(payload) {
   const now = saoPauloNow();
+  const ownerId = requireOwnerId(payload.owner_id);
 
   if (Array.isArray(payload.records) && payload.records.length > 0) {
     return payload.records.map((record) =>
-      normalizeEventRecord(record, requireEventType(record.evento_tipo), now),
+      normalizeEventRecord(record, requireEventType(record.evento_tipo), now, ownerId),
     );
   }
 
@@ -177,14 +205,14 @@ function normalizeRecords(payload) {
       const eventType = requireEventType(group.evento_tipo);
       return (group.itens ?? [])
         .filter((item) => item.confirmado !== false)
-        .map((item) => normalizeEventRecord(item, eventType, now));
+        .map((item) => normalizeEventRecord(item, eventType, now, ownerId));
     });
   }
 
   const eventType = EVENT_TYPES.has(payload.evento_tipo) ? payload.evento_tipo : "outro";
   return (payload.itens ?? [])
     .filter((item) => item.confirmado !== false)
-    .map((item) => normalizeEventRecord(item, eventType, now));
+    .map((item) => normalizeEventRecord(item, eventType, now, ownerId));
 }
 
 function groupEntriesByTable(entries) {
@@ -315,17 +343,18 @@ function buildDailySummary(data, datasets) {
   };
 }
 
-async function rowsForDate(connectors, table, data, select, order) {
+async function rowsForDate(connectors, table, data, ownerId, select, order) {
   const params = new URLSearchParams({
     select,
     data: `eq.${data}`,
+    owner_id: `eq.${ownerId}`,
     order,
   });
   const response = await supabaseRequest(connectors, `/rest/v1/${table}?${params.toString()}`);
   return response.json();
 }
 
-async function dailySummary(connectors, requestedDate) {
+async function dailySummary(connectors, requestedDate, ownerId) {
   const data = requestedDate || saoPauloNow().data;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
     throw new SupabaseRecordsError("invalid_date", "A data deve usar o formato AAAA-MM-DD.", 422);
@@ -336,6 +365,7 @@ async function dailySummary(connectors, requestedDate) {
       connectors,
       ALIMENTACAO_TABLE,
       data,
+      ownerId,
       "data,horario,item,quantidade,evento_tipo",
       "horario.asc,id.asc",
     ),
@@ -343,6 +373,7 @@ async function dailySummary(connectors, requestedDate) {
       connectors,
       "hidratacao",
       data,
+      ownerId,
       "data,horario,item,quantidade",
       "horario.asc,id.asc",
     ),
@@ -350,14 +381,150 @@ async function dailySummary(connectors, requestedDate) {
       connectors,
       "exercicios",
       data,
+      ownerId,
       "data,tipo,duracao_min,intensidade,calorias_estimadas",
       "id.asc",
     ),
-    rowsForDate(connectors, "sono", data, "data,inicio,fim,duracao_minutos", "id.asc"),
-    rowsForDate(connectors, "peso", data, "data,horario,valor_kg", "horario.asc,id.asc"),
+    rowsForDate(connectors, "sono", data, ownerId, "data,inicio,fim,duracao_minutos", "id.asc"),
+    rowsForDate(
+      connectors,
+      "peso",
+      data,
+      ownerId,
+      "data,horario,valor_kg",
+      "horario.asc,id.asc",
+    ),
   ]);
 
   return buildDailySummary(data, { alimentacao, hidratacao, exercicios, sono, peso });
+}
+
+async function userByEmail(connectors, email) {
+  const params = new URLSearchParams({
+    select: "id,email,password_hash,created_at",
+    email: `eq.${String(email ?? "").trim().toLowerCase()}`,
+    limit: "1",
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/health_users?${params.toString()}`);
+  const users = await response.json();
+  return { ok: true, user: users[0] ?? null };
+}
+
+async function userById(connectors, id) {
+  const params = new URLSearchParams({
+    select: "id,email,created_at",
+    id: `eq.${id}`,
+    limit: "1",
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/health_users?${params.toString()}`);
+  const users = await response.json();
+  return users[0] ?? null;
+}
+
+async function createUser(connectors, payload) {
+  const response = await supabaseRequest(connectors, "/rest/v1/health_users", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({
+      email: String(payload.email ?? "").trim().toLowerCase(),
+      password_hash: payload.password_hash,
+    }),
+  });
+  const users = await response.json();
+  return { ok: true, user: users[0] ?? null };
+}
+
+async function activateUser(connectors, payload) {
+  const params = new URLSearchParams({
+    id: `eq.${payload.user_id}`,
+    password_hash: `eq.${payload.expected_password_hash}`,
+    select: "id,email,created_at",
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/health_users?${params.toString()}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+    },
+    body: JSON.stringify({ password_hash: payload.password_hash }),
+  });
+  const users = await response.json();
+  if (!users[0]) {
+    throw new SupabaseRecordsError(
+      "user_exists",
+      "Esta conta principal já foi ativada.",
+      409,
+    );
+  }
+  return { ok: true, user: users[0] };
+}
+
+async function createSession(connectors, payload) {
+  await supabaseRequest(connectors, "/rest/v1/health_sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({
+      token_hash: payload.token_hash,
+      user_id: payload.user_id,
+      expires_at: payload.expires_at,
+    }),
+  });
+  return { ok: true };
+}
+
+async function sessionUser(connectors, tokenHash) {
+  const params = new URLSearchParams({
+    select: "user_id",
+    token_hash: `eq.${tokenHash}`,
+    revoked_at: "is.null",
+    expires_at: `gt.${new Date().toISOString()}`,
+    limit: "1",
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/health_sessions?${params.toString()}`);
+  const sessions = await response.json();
+  if (!sessions[0]?.user_id) return { ok: true, user: null };
+  return { ok: true, user: await userById(connectors, sessions[0].user_id) };
+}
+
+async function revokeSession(connectors, tokenHash) {
+  const params = new URLSearchParams({
+    token_hash: `eq.${tokenHash}`,
+    revoked_at: "is.null",
+  });
+  await supabaseRequest(connectors, `/rest/v1/health_sessions?${params.toString()}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({ revoked_at: new Date().toISOString() }),
+  });
+  return { ok: true };
+}
+
+async function claimOwner(connectors, ownerId) {
+  const id = requireOwnerId(ownerId);
+  const claimed = {};
+  await Promise.all(
+    HEALTH_TABLES.map(async (table) => {
+      const response = await supabaseRequest(connectors, `/rest/v1/${table}?owner_id=is.null&select=id`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({ owner_id: id }),
+      });
+      claimed[table] = (await response.json()).length;
+    }),
+  );
+  return { ok: true, claimed };
 }
 
 async function main() {
@@ -365,7 +532,29 @@ async function main() {
   const action = process.argv[2];
 
   if (action === "save") return saveRecords(connectors);
-  if (action === "summary") return dailySummary(connectors, process.argv[3]);
+  if (action === "summary") {
+    const payload = await readJsonInput();
+    return dailySummary(connectors, process.argv[3], requireOwnerId(payload.owner_id));
+  }
+  if (action === "user-by-email") {
+    const payload = await readJsonInput();
+    return userByEmail(connectors, payload.email);
+  }
+  if (action === "create-user") return createUser(connectors, await readJsonInput());
+  if (action === "activate-user") return activateUser(connectors, await readJsonInput());
+  if (action === "create-session") return createSession(connectors, await readJsonInput());
+  if (action === "session-user") {
+    const payload = await readJsonInput();
+    return sessionUser(connectors, payload.token_hash);
+  }
+  if (action === "revoke-session") {
+    const payload = await readJsonInput();
+    return revokeSession(connectors, payload.token_hash);
+  }
+  if (action === "claim-owner") {
+    const payload = await readJsonInput();
+    return claimOwner(connectors, payload.owner_id);
+  }
 
   throw new SupabaseRecordsError("unknown_action", "Ação do Supabase não reconhecida.", 400);
 }

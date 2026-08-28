@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { generateDailyReport, getDailySummary } from "@/lib/api";
 import { Activity, Droplet, Moon, Scale, Utensils, FileText } from "lucide-react";
 import { toast } from "sonner";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -32,7 +33,7 @@ function DashboardPage() {
   });
 
   return (
-    <AppShell title="Dashboard do Dia">
+    <ProtectedRoute><AppShell title="Dashboard do Dia">
       <div className="h-full overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-2xl flex-col gap-3">
           {isLoading || !data ? (
@@ -124,7 +125,7 @@ function DashboardPage() {
           )}
         </div>
       </div>
-    </AppShell>
+    </AppShell></ProtectedRoute>
   );
 }
 

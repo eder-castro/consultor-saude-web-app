@@ -1,11 +1,10 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { MessageCircle, LayoutDashboard, User, Wifi, WifiOff } from "lucide-react";
-import { useApiConfig, isMockMode } from "@/lib/api-config";
+import { MessageCircle, LayoutDashboard, User, LogOut } from "lucide-react";
+import { useAuth } from "@/providers/AuthProvider";
 import { useEffect, useState, type ReactNode } from "react";
 
 export function AppShell({ children, title }: { children: ReactNode; title: string }) {
-  const cfg = useApiConfig();
-  const mock = isMockMode(cfg);
+  const { user, logout } = useAuth();
   const location = useLocation();
   const [today, setToday] = useState("");
 
@@ -37,14 +36,9 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
           <h1 className="text-base font-semibold tracking-tight">{title}</h1>
           <p className="text-xs text-muted-foreground capitalize">{today || "\u00a0"}</p>
         </div>
-        <div
-          className={`flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs ${
-            mock ? "text-muted-foreground" : "text-primary"
-          }`}
-        >
-          {mock ? <WifiOff className="size-3" /> : <Wifi className="size-3" />}
-          {mock ? "Demo" : "Online"}
-        </div>
+        <button data-testid="button-logout" onClick={() => void logout()} className="flex max-w-[180px] items-center gap-2 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary">
+          <span className="truncate">{user?.email}</span><LogOut className="size-3.5 shrink-0" />
+        </button>
       </header>
 
       <main className="min-h-0 flex-1 overflow-hidden">{children}</main>

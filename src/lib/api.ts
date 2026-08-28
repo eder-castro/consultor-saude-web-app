@@ -15,7 +15,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 const statusMessages: Record<number, string> = {
-  401: "A conexão não foi autorizada. Confira o Bearer Token em Perfil & API.",
+  401: "Sua sessão expirou. Entre novamente para continuar.",
   413: "A imagem é maior que o limite de 8 MB.",
   415: "Tipo de imagem não suportado. Use JPEG, PNG, WebP ou GIF.",
   422: "Confira o texto ou a imagem enviados e tente novamente.",
@@ -32,9 +32,7 @@ export class ApiError extends Error {
     detail?: string,
   ) {
     super(
-      status === 401
-        ? statusMessages[status]
-        : detail || statusMessages[status] || "Não foi possível concluir a solicitação.",
+      detail || statusMessages[status] || "Não foi possível concluir a solicitação.",
     );
     this.name = "ApiError";
   }
@@ -46,9 +44,15 @@ async function fetchApi(path: string, init?: RequestInit) {
     "Content-Type": "application/json",
     ...(init?.headers as Record<string, string> | undefined),
   };
-  if (cfg.token) headers["Authorization"] = `Bearer ${cfg.token}`;
-  const res = await fetch(cfg.baseUrl.replace(/\/$/, "") + path, { ...init, headers });
+  const res = await fetch(cfg.baseUrl.replace(/\/$/, "") + path, {
+    ...init,
+    headers,
+    credentials: "include",
+  });
   if (!res.ok) {
+    if (res.status === 401 && !path.startsWith("/auth/") && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("health:unauthorized"));
+    }
     let detail: string | undefined;
     try {
       const body: unknown = await res.json();
@@ -67,10 +71,35 @@ async function fetchApi(path: string, init?: RequestInit) {
 export function getApiErrorMessage(error: unknown): string {
   if (error instanceof ApiError) return error.message;
   if (error instanceof TypeError) {
-    return "Não foi possível conectar à API. Confira a URL em Perfil & API.";
+    return "Não foi possível conectar ao serviço. Confira sua conexão e tente novamente.";
   }
   if (error instanceof Error && error.message) return error.message;
   return "Não foi possível concluir a análise. Tente novamente.";
+}
+
+export type AuthUser = { id: string; email: string };
+export type Credentials = { email: string; password: string };
+
+export async function login(credentials: Credentials): Promise<AuthUser> {
+  return (await fetchApi("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  })) as AuthUser;
+}
+
+export async function register(credentials: Credentials): Promise<AuthUser> {
+  return (await fetchApi("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(credentials),
+  })) as AuthUser;
+}
+
+export async function getCurrentUser(): Promise<AuthUser> {
+  return (await fetchApi("/auth/me", { method: "GET" })) as AuthUser;
+}
+
+export async function logout(): Promise<{ ok: true }> {
+  return (await fetchApi("/auth/logout", { method: "POST" })) as { ok: true };
 }
 
 // ===== Mock helpers =====
@@ -271,7 +300,7 @@ export async function testConnection(): Promise<boolean> {
   try {
     const cfg = readConfig();
     const res = await fetch(cfg.baseUrl.replace(/\/$/, "") + "/health", {
-      headers: cfg.token ? { Authorization: `Bearer ${cfg.token}` } : undefined,
+      credentials: "include",
     });
     return res.ok;
   } catch {

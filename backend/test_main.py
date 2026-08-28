@@ -1,11 +1,12 @@
 import base64
 import io
 import json
+import os
 import unittest
 import urllib.error
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 from pydantic import ValidationError
 
 import backend.main as main
@@ -77,6 +78,118 @@ class InputValidationTests(unittest.IsolatedAsyncioTestCase):
     def test_rejects_text_over_configured_limit(self) -> None:
         with self.assertRaises(ValidationError):
             main.ProcessInputRequest(text="x" * (main.MAX_TEXT_LENGTH + 1))
+
+
+class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
+    def test_password_hash_is_salted_and_verifiable(self) -> None:
+        first = main.hash_password("senha-segura")
+        second = main.hash_password("senha-segura")
+
+        self.assertNotEqual(first, second)
+        self.assertTrue(main.verify_password("senha-segura", first))
+        self.assertFalse(main.verify_password("senha-incorreta", first))
+        self.assertFalse(main.verify_password("senha-segura", "hash-invalido"))
+
+    def test_invited_emails_accepts_commas_semicolons_and_lines(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"INVITED_EMAILS": " UM@EXEMPLO.COM,\ndois@exemplo.com; tres@exemplo.com "},
+        ):
+            self.assertEqual(
+                main.invited_emails(),
+                {"um@exemplo.com", "dois@exemplo.com", "tres@exemplo.com"},
+            )
+
+    async def test_rejects_registration_outside_invite_list(self) -> None:
+        with patch.dict(os.environ, {"INVITED_EMAILS": "permitido@exemplo.com"}):
+            with self.assertRaises(HTTPException) as captured:
+                await main.register_user(
+                    main.CredentialsRequest(
+                        email="bloqueado@exemplo.com",
+                        password="senha-segura",
+                    ),
+                    Response(),
+                )
+
+        self.assertEqual(captured.exception.status_code, 403)
+
+    async def test_owner_registration_claims_existing_records(self) -> None:
+        user = {"id": "8e165e4f-59bc-4b94-9508-4f596ee87584", "email": "dono@exemplo.com"}
+        calls = []
+
+        async def helper(action, **kwargs):
+            calls.append((action, kwargs.get("payload")))
+            if action == "user-by-email":
+                return {"ok": True, "user": None}
+            if action == "create-user":
+                return {"ok": True, "user": {**user, "password_hash": kwargs["payload"]["password_hash"]}}
+            return {"ok": True}
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "INVITED_EMAILS": "dono@exemplo.com",
+                    "PRIMARY_OWNER_EMAIL": "dono@exemplo.com",
+                    "COOKIE_SECURE": "false",
+                },
+            ),
+            patch.object(main, "run_supabase_helper", new=AsyncMock(side_effect=helper)),
+        ):
+            response = Response()
+            result = await main.register_user(
+                main.CredentialsRequest(email="DONO@exemplo.com", password="senha-segura"),
+                response,
+            )
+
+        self.assertEqual(result, user)
+        self.assertEqual(
+            [action for action, _ in calls],
+            ["user-by-email", "create-user", "claim-owner", "create-session"],
+        )
+        self.assertIn("health_session=", response.headers["set-cookie"])
+        self.assertNotIn("senha-segura", json.dumps(calls))
+
+    async def test_owner_can_activate_pending_migrated_account(self) -> None:
+        user = {
+            "id": "8e165e4f-59bc-4b94-9508-4f596ee87584",
+            "email": "dono@exemplo.com",
+            "password_hash": "pending$locked",
+        }
+        calls = []
+
+        async def helper(action, **kwargs):
+            calls.append((action, kwargs.get("payload")))
+            if action == "user-by-email":
+                return {"ok": True, "user": user}
+            if action == "activate-user":
+                return {"ok": True, "user": {"id": user["id"], "email": user["email"]}}
+            return {"ok": True}
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "INVITED_EMAILS": user["email"],
+                    "PRIMARY_OWNER_EMAIL": user["email"],
+                    "COOKIE_SECURE": "false",
+                },
+            ),
+            patch.object(main, "run_supabase_helper", new=AsyncMock(side_effect=helper)),
+        ):
+            result = await main.register_user(
+                main.CredentialsRequest(email=user["email"], password="senha-segura"),
+                Response(),
+            )
+
+        self.assertEqual(result["email"], user["email"])
+        self.assertEqual(
+            [action for action, _ in calls],
+            ["user-by-email", "activate-user", "claim-owner", "create-session"],
+        )
+        activate_payload = calls[1][1]
+        self.assertEqual(activate_payload["expected_password_hash"], "pending$locked")
+        self.assertNotEqual(activate_payload["password_hash"], "pending$locked")
 
 
 class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):

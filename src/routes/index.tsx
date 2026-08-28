@@ -5,6 +5,7 @@ import { ChatFeed, type ChatMessage } from "@/components/chat/ChatFeed";
 import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
 import { fileToBase64, getApiErrorMessage, processInput } from "@/lib/api";
 import { toast } from "sonner";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -95,7 +96,7 @@ function ChatPage() {
   }
 
   return (
-    <AppShell title="Consultor de Saúde">
+    <ProtectedRoute><AppShell title="Consultor de Saúde">
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* O ChatFeed ocupa todo o espaço vertical disponível */}
         <div className="min-h-0 flex-1 overflow-hidden">
@@ -105,6 +106,6 @@ function ChatPage() {
         {/* O Composer fica preso na parte inferior sem empurrar a tela */}
         <Composer disabled={busy} onSubmit={handleSubmit} />
       </div>
-    </AppShell>
+    </AppShell></ProtectedRoute>
   );
 }
