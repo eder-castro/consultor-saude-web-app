@@ -245,7 +245,7 @@ Retorne apenas o JSON no formato solicitado.
 """.strip()
 
 
-def call_gemini_sync(payload: dict[str, Any]) -> dict[str, Any]:
+def call_gemini_sync(payload: dict[str, Any]) -> Any:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
@@ -302,13 +302,25 @@ def call_gemini_sync(payload: dict[str, Any]) -> dict[str, Any]:
     raise HTTPException(status_code=503, detail="O Gemini está temporariamente indisponível.")
 
 
-def extract_gemini_text(response: dict[str, Any]) -> str:
-    parts = (
-        response.get("candidates", [{}])[0]
-        .get("content", {})
-        .get("parts", [])
+def extract_gemini_text(response: Any) -> str:
+    if not isinstance(response, dict):
+        raise HTTPException(status_code=502, detail="O Gemini retornou uma resposta vazia.")
+
+    candidates = response.get("candidates")
+    first_candidate = (
+        candidates[0]
+        if isinstance(candidates, list)
+        and candidates
+        and isinstance(candidates[0], dict)
+        else {}
     )
-    text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+    content = first_candidate.get("content", {})
+    parts = content.get("parts", []) if isinstance(content, dict) else []
+    text = "".join(
+        part.get("text", "")
+        for part in parts
+        if isinstance(part, dict) and isinstance(part.get("text"), str)
+    ).strip()
     if not text:
         raise HTTPException(status_code=502, detail="O Gemini retornou uma resposta vazia.")
 

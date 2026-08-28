@@ -14,6 +14,32 @@ import { getMockSummary, recordItems } from "./mock-store";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const uid = () => Math.random().toString(36).slice(2, 10);
 
+const statusMessages: Record<number, string> = {
+  401: "A conexão não foi autorizada. Confira o Bearer Token em Perfil & API.",
+  413: "A imagem é maior que o limite de 8 MB.",
+  415: "Tipo de imagem não suportado. Use JPEG, PNG, WebP ou GIF.",
+  422: "Confira o texto ou a imagem enviados e tente novamente.",
+  429: "O serviço está temporariamente ocupado. Tente novamente em instantes.",
+  502: "O serviço de análise devolveu uma resposta inválida. Tente novamente.",
+  503: "O serviço de análise está temporariamente indisponível. Tente novamente em instantes.",
+  504: "A análise demorou demais. Tente novamente.",
+};
+
+export class ApiError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly status: number,
+    detail?: string,
+  ) {
+    super(
+      status === 401
+        ? statusMessages[status]
+        : detail || statusMessages[status] || "Não foi possível concluir a solicitação.",
+    );
+    this.name = "ApiError";
+  }
+}
+
 async function fetchApi(path: string, init?: RequestInit) {
   const cfg = readConfig();
   const headers: Record<string, string> = {
@@ -22,8 +48,29 @@ async function fetchApi(path: string, init?: RequestInit) {
   };
   if (cfg.token) headers["Authorization"] = `Bearer ${cfg.token}`;
   const res = await fetch(cfg.baseUrl.replace(/\/$/, "") + path, { ...init, headers });
-  if (!res.ok) throw new Error(`API ${path}: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail: string | undefined;
+    try {
+      const body: unknown = await res.json();
+      if (typeof body === "object" && body !== null && "detail" in body) {
+        const value = body.detail;
+        if (typeof value === "string") detail = value;
+      }
+    } catch {
+      // A resposta pode não ser JSON (por exemplo, um proxy indisponível).
+    }
+    throw new ApiError(path, res.status, detail);
+  }
   return res.json();
+}
+
+export function getApiErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof TypeError) {
+    return "Não foi possível conectar à API. Confira a URL em Perfil & API.";
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return "Não foi possível concluir a análise. Tente novamente.";
 }
 
 // ===== Mock helpers =====

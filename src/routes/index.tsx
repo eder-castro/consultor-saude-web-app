@@ -3,7 +3,7 @@ import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatFeed, type ChatMessage } from "@/components/chat/ChatFeed";
 import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
-import { fileToBase64, processInput } from "@/lib/api";
+import { fileToBase64, getApiErrorMessage, processInput } from "@/lib/api";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
@@ -65,6 +65,7 @@ function ChatPage() {
         ),
       );
     } catch (e) {
+      const errorMessage = getApiErrorMessage(e);
       setMessages((m) =>
         m.map((msg) =>
           msg.id === loadingId
@@ -72,12 +73,12 @@ function ChatPage() {
                 id: loadingId,
                 role: "assistant",
                 kind: "text",
-                text: "Não consegui analisar agora. Tente novamente.",
+                text: `Não consegui analisar este registro. ${errorMessage}`,
               }
             : msg,
         ),
       );
-      toast.error(e instanceof Error ? e.message : "Erro de processamento.");
+      toast.error(errorMessage);
     } finally {
       setBusy(false);
     }
