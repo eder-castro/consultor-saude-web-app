@@ -1,6 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { MessageCircle, LayoutDashboard, User, LogOut } from "lucide-react";
-import { useAuth } from "@/providers/AuthProvider";
+import { useAuth } from "@/providers/auth-context";
 import { useEffect, useState, type ReactNode } from "react";
 
 export function AppShell({ children, title }: { children: ReactNode; title: string }) {
@@ -36,8 +36,13 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
           <h1 className="text-base font-semibold tracking-tight">{title}</h1>
           <p className="text-xs text-muted-foreground capitalize">{today || "\u00a0"}</p>
         </div>
-        <button data-testid="button-logout" onClick={() => void logout()} className="flex max-w-[180px] items-center gap-2 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary">
-          <span className="truncate">{user?.email}</span><LogOut className="size-3.5 shrink-0" />
+        <button
+          data-testid="button-logout"
+          onClick={() => void logout()}
+          className="flex max-w-[180px] items-center gap-2 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+        >
+          <span className="truncate">{user?.email}</span>
+          <LogOut className="size-3.5 shrink-0" />
         </button>
       </header>
 

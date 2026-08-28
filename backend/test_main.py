@@ -113,6 +113,19 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(captured.exception.status_code, 403)
 
+    async def test_rejects_expired_or_revoked_session_without_exposing_token(self) -> None:
+        helper = AsyncMock(return_value={"ok": True, "user": None})
+        request = MagicMock()
+
+        with patch.object(main, "run_supabase_helper", new=helper):
+            with self.assertRaises(HTTPException) as captured:
+                await main.current_user(request, "session-token-for-test")
+
+        self.assertEqual(captured.exception.status_code, 401)
+        payload = helper.await_args.kwargs["payload"]
+        self.assertEqual(payload["token_hash"], main.hash_session_token("session-token-for-test"))
+        self.assertNotIn("session-token-for-test", json.dumps(payload))
+
     async def test_owner_registration_claims_existing_records(self) -> None:
         user = {"id": "8e165e4f-59bc-4b94-9508-4f596ee87584", "email": "dono@exemplo.com"}
         calls = []

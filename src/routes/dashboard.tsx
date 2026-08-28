@@ -16,8 +16,16 @@ export const Route = createFileRoute("/dashboard")({
       { name: "description", content: "Acompanhe água, refeições, exercício, sono e peso do dia." },
     ],
   }),
-  component: DashboardPage,
+  component: ProtectedDashboardPage,
 });
+
+function ProtectedDashboardPage() {
+  return (
+    <ProtectedRoute>
+      <DashboardPage />
+    </ProtectedRoute>
+  );
+}
 
 function DashboardPage() {
   const qc = useQueryClient();
@@ -33,7 +41,7 @@ function DashboardPage() {
   });
 
   return (
-    <ProtectedRoute><AppShell title="Dashboard do Dia">
+    <AppShell title="Dashboard do Dia">
       <div className="h-full overflow-y-auto px-4 py-4">
         <div className="mx-auto flex max-w-2xl flex-col gap-3">
           {isLoading || !data ? (
@@ -125,7 +133,7 @@ function DashboardPage() {
           )}
         </div>
       </div>
-    </AppShell></ProtectedRoute>
+    </AppShell>
   );
 }
 
@@ -133,15 +141,7 @@ function Card({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl border border-border bg-card p-4">{children}</div>;
 }
 
-function MiniCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
+function MiniCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3">
       <div className="flex items-center gap-1.5 text-muted-foreground">

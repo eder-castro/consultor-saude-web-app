@@ -31,9 +31,7 @@ export class ApiError extends Error {
     public readonly status: number,
     detail?: string,
   ) {
-    super(
-      detail || statusMessages[status] || "Não foi possível concluir a solicitação.",
-    );
+    super(detail || statusMessages[status] || "Não foi possível concluir a solicitação.");
     this.name = "ApiError";
   }
 }

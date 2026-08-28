@@ -18,10 +18,18 @@ export const Route = createFileRoute("/")({
       },
     ],
   }),
-  component: ChatPage,
+  component: ProtectedChatPage,
 });
 
 const uid = () => Math.random().toString(36).slice(2, 10);
+
+function ProtectedChatPage() {
+  return (
+    <ProtectedRoute>
+      <ChatPage />
+    </ProtectedRoute>
+  );
+}
 
 function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -96,7 +104,7 @@ function ChatPage() {
   }
 
   return (
-    <ProtectedRoute><AppShell title="Consultor de Saúde">
+    <AppShell title="Consultor de Saúde">
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* O ChatFeed ocupa todo o espaço vertical disponível */}
         <div className="min-h-0 flex-1 overflow-hidden">
@@ -106,6 +114,6 @@ function ChatPage() {
         {/* O Composer fica preso na parte inferior sem empurrar a tela */}
         <Composer disabled={busy} onSubmit={handleSubmit} />
       </div>
-    </AppShell></ProtectedRoute>
+    </AppShell>
   );
 }

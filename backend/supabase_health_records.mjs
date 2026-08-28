@@ -33,7 +33,21 @@ async function readJsonInput() {
 }
 
 async function supabaseRequest(connectors, path, init = {}) {
-  const response = await connectors.proxy(CONNECTOR_NAME, path, init);
+  const appSecret = process.env.SESSION_SECRET;
+  if (!appSecret) {
+    throw new SupabaseRecordsError(
+      "app_secret_missing",
+      "A credencial interna de acesso aos dados não está configurada.",
+      503,
+    );
+  }
+  const response = await connectors.proxy(CONNECTOR_NAME, path, {
+    ...init,
+    headers: {
+      ...(init.headers ?? {}),
+      "X-Health-App-Secret": appSecret,
+    },
+  });
   if (!response.ok) {
     const detail = (await response.text()).slice(0, 500);
     throw new SupabaseRecordsError(
@@ -527,6 +541,19 @@ async function claimOwner(connectors, ownerId) {
   return { ok: true, claimed };
 }
 
+async function initializeAppAccess(connectors) {
+  const response = await supabaseRequest(
+    connectors,
+    "/rest/v1/rpc/initialize_health_app_secret",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ p_secret: process.env.SESSION_SECRET }),
+    },
+  );
+  return { ok: true, initialized: await response.json() };
+}
+
 async function main() {
   const connectors = new ReplitConnectors();
   const action = process.argv[2];
@@ -555,6 +582,7 @@ async function main() {
     const payload = await readJsonInput();
     return claimOwner(connectors, payload.owner_id);
   }
+  if (action === "initialize-app-access") return initializeAppAccess(connectors);
 
   throw new SupabaseRecordsError("unknown_action", "Ação do Supabase não reconhecida.", 400);
 }
