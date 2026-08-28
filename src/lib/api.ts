@@ -100,6 +100,7 @@ function mockProcess(input: { text?: string; imageBase64?: string }): Validation
 export async function processInput(input: {
   text?: string;
   imageBase64?: string;
+  mimeType?: string;
 }): Promise<ValidationPayload> {
   if (isMockMode()) {
     await sleep(1100);
@@ -107,7 +108,11 @@ export async function processInput(input: {
   }
   const json = await fetchApi("/process-input", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      text: input.text,
+      image_base64: input.imageBase64,
+      mime_type: input.mimeType,
+    }),
   });
   return ValidationPayloadSchema.parse(json);
 }

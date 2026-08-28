@@ -52,6 +52,7 @@ function ChatPage() {
           : await processInput({
               imageBase64: await fileToBase64(s.file),
               text: s.caption || undefined,
+              mimeType: s.file.type,
             });
 
       setMessages((m) =>
