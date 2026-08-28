@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { ChatFeed, type ChatMessage } from "@/components/chat/ChatFeed";
+import { ChatFeed } from "@/components/chat/ChatFeed";
 import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
 import { fileToBase64, getApiErrorMessage, processInput } from "@/lib/api";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { useChat } from "@/providers/chat-context";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,7 +33,7 @@ function ProtectedChatPage() {
 }
 
 function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const { messages, setMessages } = useChat();
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(s: ComposerSubmit) {

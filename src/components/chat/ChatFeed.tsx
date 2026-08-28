@@ -1,20 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ValidationCard } from "./ValidationCard";
-import type { ValidationPayload } from "@/lib/api-schemas";
-
-export type ChatMessage =
-  | { id: string; role: "user"; kind: "text"; text: string }
-  | { id: string; role: "user"; kind: "image"; imageUrl: string; caption: string }
-  | { id: string; role: "assistant"; kind: "loading" }
-  | { id: string; role: "assistant"; kind: "text"; text: string }
-  | {
-      id: string;
-      role: "assistant";
-      kind: "validation";
-      payload: ValidationPayload;
-      status: "pending" | "saved" | "discarded";
-    };
+import type { ChatMessage } from "@/providers/chat-context";
 
 export function ChatFeed({
   messages,
