@@ -193,6 +193,83 @@ function normalizeEventRecord(record, eventType, now, ownerId) {
   };
 }
 
+function normalizeLabel(value) {
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function durationMinutes(value) {
+  const hours = parseSleepHours(value);
+  return hours === null ? null : Math.round(hours * 60);
+}
+
+function formatDurationMinutes(minutes) {
+  return minutes === null ? null : `${minutes} min`;
+}
+
+function consolidateSleepItems(items) {
+  const confirmedItems = items.filter((item) => item.confirmado !== false);
+  if (confirmedItems.length <= 1) return confirmedItems;
+
+  const stages = {
+    deep: null,
+    light: null,
+    rem: null,
+    awake: null,
+  };
+  let totalItem = null;
+
+  for (const item of confirmedItems) {
+    const label = normalizeLabel(item.item);
+    const minutes = durationMinutes(item.quantidade ?? item.quantidade_estimada);
+    if (minutes === null) continue;
+
+    if (label.includes("profund")) {
+      stages.deep = minutes;
+    } else if (label.includes("leve")) {
+      stages.light = minutes;
+    } else if (/(^|\s)rem(\s|$)/.test(label)) {
+      stages.rem = minutes;
+    } else if (label.includes("acord")) {
+      stages.awake = minutes;
+    } else if (
+      label.includes("total") ||
+      label.includes("tempo dormido") ||
+      label.includes("duracao do sono")
+    ) {
+      totalItem = item;
+    }
+  }
+
+  const hasStages = Object.values(stages).some((value) => value !== null);
+  if (!hasStages && !totalItem) return confirmedItems;
+
+  const explicitTotal = totalItem
+    ? durationMinutes(totalItem.quantidade ?? totalItem.quantidade_estimada)
+    : null;
+  const stageTotal =
+    [stages.deep, stages.light, stages.rem]
+      .filter((value) => value !== null)
+      .reduce((sum, value) => sum + value, 0) || null;
+  const total = explicitTotal ?? stageTotal;
+  if (total === null) return confirmedItems;
+
+  return [
+    {
+      ...(totalItem ?? confirmedItems[0]),
+      item: "Sono total",
+      quantidade_estimada: formatDurationMinutes(total),
+      sono_profundo_min: formatDurationMinutes(stages.deep),
+      sono_leve_min: formatDurationMinutes(stages.light),
+      sono_rem_min: formatDurationMinutes(stages.rem),
+      acordado_min: formatDurationMinutes(stages.awake),
+    },
+  ];
+}
+
 function requireEventType(value) {
   if (!EVENT_TYPES.has(value)) {
     throw new SupabaseRecordsError(
@@ -217,9 +294,11 @@ function normalizeRecords(payload) {
   if (Array.isArray(payload.grupos) && payload.grupos.length > 0) {
     return payload.grupos.flatMap((group) => {
       const eventType = requireEventType(group.evento_tipo);
-      return (group.itens ?? [])
-        .filter((item) => item.confirmado !== false)
-        .map((item) => normalizeEventRecord(item, eventType, now, ownerId));
+      const items =
+        eventType === "sono"
+          ? consolidateSleepItems(group.itens ?? [])
+          : (group.itens ?? []).filter((item) => item.confirmado !== false);
+      return items.map((item) => normalizeEventRecord(item, eventType, now, ownerId));
     });
   }
 

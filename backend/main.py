@@ -624,6 +624,8 @@ foto de refeição deve gerar grupos de sono e alimentação.
 Regras específicas:
 - prints de aplicativos de sono devem gerar um grupo sono; use a duração total
   legível como quantidade (por exemplo "7h 35min" ou "455 min");
+- para sono, retorne exatamente um item chamado "Sono total"; não crie itens
+  separados para sono profundo, leve, REM, acordado ou outras métricas;
 - fotos de refeições devem gerar alimentação com um item por alimento visível;
 - textos impressos na foto contam como fonte explícita e devem ser transcritos;
 - nunca classifique sono ou refeição como "outro" quando esses fatos estiverem visíveis.
@@ -721,8 +723,10 @@ def is_gemini_quota_error(detail: str) -> bool:
 def call_gemini_sync(payload: dict[str, Any], models: list[str] | None = None) -> Any:
     request_body = json.dumps(payload).encode("utf-8")
     candidate_models = models or [GEMINI_MODEL]
-    if models is None and GEMINI_FALLBACK_MODEL and GEMINI_FALLBACK_MODEL != GEMINI_MODEL:
-        candidate_models.append(GEMINI_FALLBACK_MODEL)
+    if models is None:
+        for candidate in (GEMINI_FALLBACK_MODEL, GEMINI_POWER_MODEL):
+            if candidate and candidate not in candidate_models:
+                candidate_models.append(candidate)
 
     for model_index, model in enumerate(candidate_models):
         url = (
@@ -767,6 +771,13 @@ def call_gemini_sync(payload: dict[str, Any], models: list[str] | None = None) -
                 if error.code in {429, 503} and attempt < 2:
                     time.sleep(2**attempt)
                     continue
+                if error.code == 503 and model_index < len(candidate_models) - 1:
+                    logger.warning(
+                        "Modelo Gemini %s sobrecarregado; tentando fallback %s.",
+                        model,
+                        candidate_models[model_index + 1],
+                    )
+                    break
                 if error.code == 429:
                     raise HTTPException(
                         status_code=429,

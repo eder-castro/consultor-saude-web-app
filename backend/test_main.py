@@ -460,6 +460,8 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
 
     def test_retries_temporary_503_then_returns_safe_error(self) -> None:
         with (
+            patch.object(main, "GEMINI_FALLBACK_MODEL", ""),
+            patch.object(main, "GEMINI_POWER_MODEL", ""),
             patch.object(main.urllib.request, "urlopen", side_effect=http_error(503)) as urlopen,
             patch.object(main.time, "sleep"),
         ):
@@ -467,6 +469,32 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
                 main.call_gemini_sync({})
 
         self.assertEqual(urlopen.call_count, 3)
+
+    def test_falls_back_when_primary_model_remains_overloaded(self) -> None:
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b'{"ok": true}'
+        with (
+            patch.object(main, "GEMINI_MODEL", "primary-model"),
+            patch.object(main, "GEMINI_FALLBACK_MODEL", "fallback-model"),
+            patch.object(main, "GEMINI_POWER_MODEL", ""),
+            patch.object(
+                main.urllib.request,
+                "urlopen",
+                side_effect=[
+                    http_error(503),
+                    http_error(503),
+                    http_error(503),
+                    response,
+                ],
+            ) as urlopen,
+            patch.object(main.time, "sleep"),
+        ):
+            result = main.call_gemini_sync({})
+
+        self.assertEqual(result, {"ok": True})
+        self.assertEqual(urlopen.call_count, 4)
+        self.assertIn("fallback-model:generateContent", urlopen.call_args_list[-1].args[0].full_url)
 
     def test_maps_timeout_to_safe_error(self) -> None:
         with patch.object(

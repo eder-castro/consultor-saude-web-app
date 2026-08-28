@@ -62,6 +62,43 @@ test("routes mixed food and hydration groups to their own tables", async () => {
   ]);
 });
 
+test("consolidates sleep stages into one total sleep record", async () => {
+  const requests = [];
+  const connectors = {
+    proxy: async (name, path, init) => {
+      requests.push({ name, path, init });
+      return { ok: true };
+    },
+  };
+
+  const result = await saveRecordsPayload(connectors, {
+    owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
+    grupos: [
+      {
+        evento_tipo: "sono",
+        itens: [
+          { item: "Sono profundo", quantidade_estimada: "1h", confirmado: true },
+          { item: "Sono leve", quantidade_estimada: "4h", confirmado: true },
+          { item: "Sono REM", quantidade_estimada: "2h", confirmado: true },
+          { item: "Acordado", quantidade_estimada: "15min", confirmado: true },
+        ],
+      },
+    ],
+  });
+
+  expect(result).toEqual({ ok: true, saved: 1 });
+  expect(requests).toHaveLength(1);
+  expect(JSON.parse(requests[0].init.body)).toEqual([
+    expect.objectContaining({
+      duracao_minutos: "420 min",
+      sono_profundo_min: "60 min",
+      sono_leve_min: "240 min",
+      sono_rem_min: "120 min",
+      acordado_min: "15 min",
+    }),
+  ]);
+});
+
 test("upserts health context with the authenticated owner id", async () => {
   const requests = [];
   const connectors = {
