@@ -400,14 +400,7 @@ async function dailySummary(connectors, requestedDate, ownerId) {
       "id.asc",
     ),
     rowsForDate(connectors, "sono", data, ownerId, "data,inicio,fim,duracao_minutos", "id.asc"),
-    rowsForDate(
-      connectors,
-      "peso",
-      data,
-      ownerId,
-      "data,horario,valor_kg",
-      "horario.asc,id.asc",
-    ),
+    rowsForDate(connectors, "peso", data, ownerId, "data,horario,valor_kg", "horario.asc,id.asc"),
   ]);
 
   return buildDailySummary(data, { alimentacao, hidratacao, exercicios, sono, peso });
@@ -416,7 +409,9 @@ async function dailySummary(connectors, requestedDate, ownerId) {
 async function userByEmail(connectors, email) {
   const params = new URLSearchParams({
     select: "id,email,password_hash,created_at",
-    email: `eq.${String(email ?? "").trim().toLowerCase()}`,
+    email: `eq.${String(email ?? "")
+      .trim()
+      .toLowerCase()}`,
     limit: "1",
   });
   const response = await supabaseRequest(connectors, `/rest/v1/health_users?${params.toString()}`);
@@ -443,7 +438,9 @@ async function createUser(connectors, payload) {
       Prefer: "return=representation",
     },
     body: JSON.stringify({
-      email: String(payload.email ?? "").trim().toLowerCase(),
+      email: String(payload.email ?? "")
+        .trim()
+        .toLowerCase(),
       password_hash: payload.password_hash,
     }),
   });
@@ -467,11 +464,7 @@ async function activateUser(connectors, payload) {
   });
   const users = await response.json();
   if (!users[0]) {
-    throw new SupabaseRecordsError(
-      "user_exists",
-      "Esta conta principal já foi ativada.",
-      409,
-    );
+    throw new SupabaseRecordsError("user_exists", "Esta conta principal já foi ativada.", 409);
   }
   return { ok: true, user: users[0] };
 }
@@ -500,7 +493,10 @@ async function sessionUser(connectors, tokenHash) {
     expires_at: `gt.${new Date().toISOString()}`,
     limit: "1",
   });
-  const response = await supabaseRequest(connectors, `/rest/v1/health_sessions?${params.toString()}`);
+  const response = await supabaseRequest(
+    connectors,
+    `/rest/v1/health_sessions?${params.toString()}`,
+  );
   const sessions = await response.json();
   if (!sessions[0]?.user_id) return { ok: true, user: null };
   return { ok: true, user: await userById(connectors, sessions[0].user_id) };
@@ -527,31 +523,22 @@ async function claimOwner(connectors, ownerId) {
   const claimed = {};
   await Promise.all(
     HEALTH_TABLES.map(async (table) => {
-      const response = await supabaseRequest(connectors, `/rest/v1/${table}?owner_id=is.null&select=id`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Prefer: "return=representation",
+      const response = await supabaseRequest(
+        connectors,
+        `/rest/v1/${table}?owner_id=is.null&select=id`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify({ owner_id: id }),
         },
-        body: JSON.stringify({ owner_id: id }),
-      });
+      );
       claimed[table] = (await response.json()).length;
     }),
   );
   return { ok: true, claimed };
-}
-
-async function initializeAppAccess(connectors) {
-  const response = await supabaseRequest(
-    connectors,
-    "/rest/v1/rpc/initialize_health_app_secret",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ p_secret: process.env.SESSION_SECRET }),
-    },
-  );
-  return { ok: true, initialized: await response.json() };
 }
 
 async function main() {
@@ -582,7 +569,6 @@ async function main() {
     const payload = await readJsonInput();
     return claimOwner(connectors, payload.owner_id);
   }
-  if (action === "initialize-app-access") return initializeAppAccess(connectors);
 
   throw new SupabaseRecordsError("unknown_action", "Ação do Supabase não reconhecida.", 400);
 }

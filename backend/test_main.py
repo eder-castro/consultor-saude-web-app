@@ -126,18 +126,8 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["token_hash"], main.hash_session_token("session-token-for-test"))
         self.assertNotIn("session-token-for-test", json.dumps(payload))
 
-    async def test_owner_registration_claims_existing_records(self) -> None:
-        user = {"id": "8e165e4f-59bc-4b94-9508-4f596ee87584", "email": "dono@exemplo.com"}
-        calls = []
-
-        async def helper(action, **kwargs):
-            calls.append((action, kwargs.get("payload")))
-            if action == "user-by-email":
-                return {"ok": True, "user": None}
-            if action == "create-user":
-                return {"ok": True, "user": {**user, "password_hash": kwargs["payload"]["password_hash"]}}
-            return {"ok": True}
-
+    async def test_owner_registration_requires_administrative_activation(self) -> None:
+        helper = AsyncMock()
         with (
             patch.dict(
                 os.environ,
@@ -147,62 +137,16 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
                     "COOKIE_SECURE": "false",
                 },
             ),
-            patch.object(main, "run_supabase_helper", new=AsyncMock(side_effect=helper)),
+            patch.object(main, "run_supabase_helper", new=helper),
         ):
-            response = Response()
-            result = await main.register_user(
-                main.CredentialsRequest(email="DONO@exemplo.com", password="senha-segura"),
-                response,
-            )
+            with self.assertRaises(HTTPException) as captured:
+                await main.register_user(
+                    main.CredentialsRequest(email="DONO@exemplo.com", password="senha-segura"),
+                    Response(),
+                )
 
-        self.assertEqual(result, user)
-        self.assertEqual(
-            [action for action, _ in calls],
-            ["user-by-email", "create-user", "claim-owner", "create-session"],
-        )
-        self.assertIn("health_session=", response.headers["set-cookie"])
-        self.assertNotIn("senha-segura", json.dumps(calls))
-
-    async def test_owner_can_activate_pending_migrated_account(self) -> None:
-        user = {
-            "id": "8e165e4f-59bc-4b94-9508-4f596ee87584",
-            "email": "dono@exemplo.com",
-            "password_hash": "pending$locked",
-        }
-        calls = []
-
-        async def helper(action, **kwargs):
-            calls.append((action, kwargs.get("payload")))
-            if action == "user-by-email":
-                return {"ok": True, "user": user}
-            if action == "activate-user":
-                return {"ok": True, "user": {"id": user["id"], "email": user["email"]}}
-            return {"ok": True}
-
-        with (
-            patch.dict(
-                os.environ,
-                {
-                    "INVITED_EMAILS": user["email"],
-                    "PRIMARY_OWNER_EMAIL": user["email"],
-                    "COOKIE_SECURE": "false",
-                },
-            ),
-            patch.object(main, "run_supabase_helper", new=AsyncMock(side_effect=helper)),
-        ):
-            result = await main.register_user(
-                main.CredentialsRequest(email=user["email"], password="senha-segura"),
-                Response(),
-            )
-
-        self.assertEqual(result["email"], user["email"])
-        self.assertEqual(
-            [action for action, _ in calls],
-            ["user-by-email", "activate-user", "claim-owner", "create-session"],
-        )
-        activate_payload = calls[1][1]
-        self.assertEqual(activate_payload["expected_password_hash"], "pending$locked")
-        self.assertNotEqual(activate_payload["password_hash"], "pending$locked")
+        self.assertEqual(captured.exception.status_code, 403)
+        helper.assert_not_awaited()
 
 
 class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):

@@ -18,28 +18,6 @@ alter table public.log_json enable row level security;
 alter table public.health_users enable row level security;
 alter table public.health_sessions enable row level security;
 
-create or replace function public.initialize_health_app_secret(p_secret text)
-returns boolean
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  if p_secret is null or length(p_secret) < 16 then
-    raise exception 'invalid application secret';
-  end if;
-
-  insert into public.health_app_config (singleton, secret_hash)
-  values (true, encode(extensions.digest(p_secret, 'sha256'), 'hex'))
-  on conflict (singleton) do nothing;
-
-  return found;
-end;
-$$;
-
-revoke all on function public.initialize_health_app_secret(text) from public;
-grant execute on function public.initialize_health_app_secret(text) to anon;
-
 create or replace function public.health_app_request_authorized()
 returns boolean
 language sql

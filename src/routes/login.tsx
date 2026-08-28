@@ -17,9 +17,8 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { user, loading, login, register } = useAuth();
+  const { user, loading, login } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,7 +38,7 @@ function LoginPage() {
     }
     setBusy(true);
     try {
-      await (mode === "login" ? login({ email, password }) : register({ email, password }));
+      await login({ email, password });
       await navigate({ to: "/" });
     } catch (e) {
       setError(authMessage(e));
@@ -78,15 +77,11 @@ function LoginPage() {
             <div className="mb-4 flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">
               <LockKeyhole className="size-5" />
             </div>
-            <h2 className="text-2xl font-semibold tracking-tight">
-              {mode === "login" ? "Que bom ver você." : "Crie seu espaço."}
-            </h2>
+            <h2 className="text-2xl font-semibold tracking-tight">Que bom ver você.</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {expired
                 ? "Sua sessão terminou. Entre novamente para continuar."
-                : mode === "login"
-                  ? "Entre para continuar seu cuidado diário."
-                  : "Comece um diário privado para acompanhar seus dias."}
+                : "Entre para continuar seu cuidado diário."}
             </p>
           </div>
           <div className="space-y-4">
@@ -94,6 +89,7 @@ function LoginPage() {
               E-mail
               <Input
                 data-testid="input-email"
+                suppressHydrationWarning
                 className="mt-2 h-11 bg-background"
                 type="email"
                 autoComplete="email"
@@ -106,9 +102,10 @@ function LoginPage() {
               Senha
               <Input
                 data-testid="input-password"
+                suppressHydrationWarning
                 className="mt-2 h-11 bg-background"
                 type="password"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="mínimo de 8 caracteres"
@@ -126,20 +123,12 @@ function LoginPage() {
             </p>
           )}
           <Button data-testid="button-submit-auth" className="mt-6 h-11 w-full" disabled={busy}>
-            {busy ? "Aguarde..." : mode === "login" ? "Entrar no meu dia" : "Criar minha conta"}
+            {busy ? "Aguarde..." : "Entrar no meu dia"}
             <ArrowRight />
           </Button>
-          <button
-            data-testid="button-toggle-auth-mode"
-            type="button"
-            onClick={() => {
-              setMode(mode === "login" ? "register" : "login");
-              setError("");
-            }}
-            className="mt-5 w-full text-sm text-muted-foreground transition-colors hover:text-primary"
-          >
-            {mode === "login" ? "Ainda não tenho uma conta" : "Já tenho uma conta"}
-          </button>
+          <p className="mt-5 text-center text-xs text-muted-foreground">
+            Acesso somente para contas previamente autorizadas.
+          </p>
         </form>
       </section>
     </main>

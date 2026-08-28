@@ -231,25 +231,16 @@ async def register_user(body: CredentialsRequest, response: Response) -> dict[st
     primary_owner = normalize_email(os.environ["PRIMARY_OWNER_EMAIL"]) if os.environ.get(
         "PRIMARY_OWNER_EMAIL"
     ) else ""
+    if primary_owner and email == primary_owner:
+        raise HTTPException(
+            status_code=403,
+            detail="A conta principal só pode ser ativada pelo processo administrativo seguro.",
+        )
+
     existing = await run_supabase_helper("user-by-email", payload={"email": email})
     existing_user = existing.get("user")
     if isinstance(existing_user, dict):
-        pending_owner = (
-            email == primary_owner
-            and isinstance(existing_user.get("password_hash"), str)
-            and existing_user["password_hash"].startswith("pending$")
-        )
-        if not pending_owner:
-            raise HTTPException(status_code=409, detail="Já existe uma conta para este e-mail.")
-        activated = await run_supabase_helper(
-            "activate-user",
-            payload={
-                "user_id": existing_user["id"],
-                "expected_password_hash": existing_user["password_hash"],
-                "password_hash": hash_password(body.password),
-            },
-        )
-        user = activated.get("user")
+        raise HTTPException(status_code=409, detail="Já existe uma conta para este e-mail.")
     else:
         created = await run_supabase_helper(
             "create-user",
@@ -259,9 +250,6 @@ async def register_user(body: CredentialsRequest, response: Response) -> dict[st
 
     if not isinstance(user, dict) or not user.get("id"):
         raise HTTPException(status_code=502, detail="Não foi possível criar a conta.")
-
-    if primary_owner and email == primary_owner:
-        await run_supabase_helper("claim-owner", payload={"owner_id": user["id"]})
 
     return await create_authenticated_session(user, response)
 

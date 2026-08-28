@@ -1,3 +1,4 @@
 - [Python connector bridge](python-connector-bridge.md) — Python connector package is unavailable here; keep OAuth handling in the official JavaScript SDK bridge.
 - [Gemini model lifecycle](gemini-api-model-lifecycle.md) — Keep model selection configurable; provider model availability changes and transient capacity errors need backoff.
 - [Vite hydration stability](vite-hydration-stability.md) — Ignore Bun cache churn; suppress hydration only on fields mutated by Replit browser tooling.
+- [Supabase connector RLS](supabase-connector-rls.md) — The connector reaches PostgREST as anon; backend-only tables need RLS gated by a server-held request credential.
