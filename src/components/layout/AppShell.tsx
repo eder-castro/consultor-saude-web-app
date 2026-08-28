@@ -31,15 +31,15 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
 
   return (
     <div className="flex h-[100dvh] flex-col bg-background text-foreground">
-      <header className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+      <header className="flex shrink-0 items-center justify-between border-b border-border px-5 py-4">
         <div>
-          <h1 className="text-base font-semibold tracking-tight">{title}</h1>
-          <p className="text-xs text-muted-foreground capitalize">{today || "\u00a0"}</p>
+          <h1 className="text-lg font-semibold tracking-tight">{title}</h1>
+          <p className="text-sm text-muted-foreground capitalize">{today || "\u00a0"}</p>
         </div>
         <button
           data-testid="button-logout"
           onClick={() => void logout()}
-          className="flex max-w-[180px] items-center gap-2 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+          className="flex max-w-[220px] items-center gap-2 rounded-full border border-border px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
         >
           <span className="truncate">{user?.email}</span>
           <LogOut className="size-3.5 shrink-0" />
@@ -55,7 +55,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
             <Link
               key={to}
               to={to}
-              className={`flex flex-col items-center gap-0.5 py-2.5 text-xs transition-colors ${
+              className={`flex flex-col items-center gap-1 py-3 text-sm transition-colors ${
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground"
               }`}
             >

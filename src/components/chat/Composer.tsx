@@ -52,7 +52,7 @@ export function Composer({
       {pendingFile && (
         <div className="mb-2 flex items-center gap-3 rounded-xl border border-border bg-background p-2">
           <img src={pendingFile.url} alt="prévia" className="size-14 rounded-lg object-cover" />
-          <p className="flex-1 text-xs text-muted-foreground">
+          <p className="flex-1 text-sm leading-relaxed text-muted-foreground">
             Foto pronta para envio. Adicione uma legenda opcional.
           </p>
           <Button
@@ -68,7 +68,7 @@ export function Composer({
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-3">
         <input
           ref={cameraRef}
           type="file"
@@ -97,7 +97,7 @@ export function Composer({
             <Button
               size="icon"
               variant="outline"
-              className="size-11 shrink-0 rounded-full"
+              className="size-12 shrink-0 rounded-full"
               disabled={disabled}
               aria-label="Anexar foto"
             >
@@ -139,12 +139,12 @@ export function Composer({
             pendingFile ? "Legenda (opcional)..." : "Ex: Tomei 500ml de água, dormi 7h, comi..."
           }
           rows={2}
-          className="h-[3.75rem] max-h-[3.75rem] min-h-[3.75rem] flex-1 resize-none overflow-y-auto bg-background"
+          className="h-14 max-h-14 min-h-14 flex-1 resize-none overflow-y-auto bg-background text-base leading-6"
         />
 
         <Button
           size="icon"
-          className="size-11 shrink-0 rounded-full"
+          className="size-12 shrink-0 rounded-full"
           onClick={send}
           disabled={disabled || (!text.trim() && !pendingFile)}
           aria-label="Enviar"

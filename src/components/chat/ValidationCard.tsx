@@ -94,13 +94,15 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+    <div className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">
+          <p className="text-sm uppercase tracking-wider text-muted-foreground">
             Registros detectados
           </p>
-          {payload.resumo && <p className="mt-0.5 text-sm text-foreground/80">{payload.resumo}</p>}
+          {payload.resumo && (
+            <p className="mt-1 text-base leading-relaxed text-foreground/80">{payload.resumo}</p>
+          )}
         </div>
         {status === "saved" && (
           <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
@@ -114,27 +116,27 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
         {groups.map((group) => (
           <section key={group.evento_tipo} className="space-y-2">
-            <h3 className="text-sm font-semibold text-foreground">
+            <h3 className="text-base font-semibold text-foreground">
               {TIPO_LABEL[group.evento_tipo]}
             </h3>
-            <ul className="space-y-2">
+            <ul className="space-y-3">
               {group.itens.map((it) => (
-                <li key={it.id} className="flex items-center gap-2">
+                <li key={it.id} className="flex items-center gap-3">
                   <Checkbox
                     checked={it.confirmado}
                     disabled={readonly}
                     onCheckedChange={(v) => update(group.evento_tipo, it.id, { confirmado: !!v })}
-                    className="size-5 shrink-0"
+                    className="size-6 shrink-0"
                   />
                   <Input
                     value={it.item}
                     disabled={readonly}
                     onChange={(e) => update(group.evento_tipo, it.id, { item: e.target.value })}
                     placeholder="Item"
-                    className="h-9 flex-1 bg-background"
+                    className="h-11 flex-1 bg-background text-base"
                   />
                   <Input
                     value={it.quantidade_estimada}
@@ -143,7 +145,7 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
                       update(group.evento_tipo, it.id, { quantidade_estimada: e.target.value })
                     }
                     placeholder="Qtd"
-                    className="h-9 w-24 bg-background"
+                    className="h-11 w-28 bg-background text-base"
                   />
                   {!readonly && (
                     <Button
@@ -164,7 +166,7 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
                 variant="ghost"
                 size="sm"
                 onClick={() => add(group.evento_tipo)}
-                className="h-8 text-muted-foreground"
+                className="h-10 text-base text-muted-foreground"
               >
                 <Plus className="size-4" /> Adicionar item
               </Button>
@@ -175,16 +177,16 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
 
       {!readonly && (
         <>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-5 flex gap-3">
             <Button
               variant="outline"
-              className="flex-1"
+              className="h-11 flex-1 text-base"
               disabled={saving}
               onClick={() => onResolved("discarded")}
             >
               <X className="size-4" /> Descartar
             </Button>
-            <Button className="flex-1" disabled={saving} onClick={confirm}>
+            <Button className="h-11 flex-1 text-base" disabled={saving} onClick={confirm}>
               <Check className="size-4" /> {saving ? "Salvando..." : "Confirmar"}
             </Button>
           </div>

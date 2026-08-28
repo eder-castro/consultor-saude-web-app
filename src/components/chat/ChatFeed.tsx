@@ -19,8 +19,8 @@ export function ChatFeed({
   }, [messages]);
 
   return (
-    <div className="h-full w-full overflow-y-auto px-4 py-4">
-      <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-end gap-3">
+    <div className="h-full w-full overflow-y-auto px-3 py-5 sm:px-6 sm:py-6">
+      <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-end gap-4">
         {/* Saudação limpa e fixa no topo do histórico */}
         <div className="pb-2">
           <GreetingHeader />
@@ -55,8 +55,8 @@ function GreetingHeader() {
 
   return (
     <div className="space-y-2">
-      <h2 className="text-lg font-semibold tracking-tight">{greeting}</h2>
-      <div className="text-sm leading-relaxed text-muted-foreground">
+      <h2 className="text-xl font-semibold tracking-tight">{greeting}</h2>
+      <div className="text-base leading-relaxed text-muted-foreground">
         <p>Faça um registro:</p>
         <ul className="mt-1 list-disc space-y-1 pl-5">
           <li>Enviando uma foto de uma refeição</li>
@@ -78,7 +78,7 @@ function Bubble({
   if (m.role === "user") {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-primary px-3.5 py-2.5 text-sm text-primary-foreground">
+        <div className="max-w-[92%] rounded-3xl rounded-tr-sm bg-primary px-4 py-3 text-base leading-relaxed text-primary-foreground sm:max-w-[85%]">
           {m.kind === "image" ? (
             <div className="space-y-2">
               <img
@@ -111,7 +111,7 @@ function Bubble({
   if (m.kind === "text") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[85%] rounded-2xl rounded-tl-sm border border-border bg-card px-3.5 py-2.5 text-sm">
+        <div className="max-w-[92%] rounded-3xl rounded-tl-sm border border-border bg-card px-4 py-3 text-base leading-relaxed sm:max-w-[85%]">
           {m.text}
         </div>
       </div>
@@ -120,7 +120,7 @@ function Bubble({
 
   return (
     <div className="flex justify-start">
-      <div className="w-full max-w-[95%]">
+      <div className="w-full max-w-full">
         <ValidationCard payload={m.payload} status={m.status} onResolved={onResolved} />
       </div>
     </div>
