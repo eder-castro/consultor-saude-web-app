@@ -2,7 +2,6 @@ import asyncio
 import hmac
 import json
 import os
-from contextlib import asynccontextmanager, suppress
 from datetime import date
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,42 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GOOGLE_SHEETS_CREDENTIALS = os.environ.get("GOOGLE_SHEETS_CREDENTIALS", "")
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
-CONTEXT_HELPER = Path(__file__).with_name("google_drive_context.mjs")
 SUPABASE_HELPER = Path(__file__).with_name("supabase_health_records.mjs")
-SYNC_HELPER = Path(__file__).with_name("sync_health_sheet.mjs")
-CONTEXT_TIMEOUT_SECONDS = 20
 SUPABASE_TIMEOUT_SECONDS = 30
-SYNC_TIMEOUT_SECONDS = 120
-HEALTH_SYNC_INTERVAL_SECONDS = max(
-    30,
-    int(os.environ.get("HEALTH_SYNC_INTERVAL_SECONDS", "300")),
-)
-HEALTH_SYNC_LOCK = asyncio.Lock()
-HEALTH_SYNC_STATE: dict[str, Any] = {
-    "interval_seconds": HEALTH_SYNC_INTERVAL_SECONDS,
-    "running": False,
-    "last_checked_at": None,
-    "last_synced_at": None,
-    "last_modified_time": None,
-    "last_result": None,
-    "last_error": None,
-}
 
-
-@asynccontextmanager
-async def lifespan(_: FastAPI):
-    sync_task = asyncio.create_task(health_sync_loop(), name="health-sheet-sync")
-    try:
-        yield
-    finally:
-        sync_task.cancel()
-        with suppress(asyncio.CancelledError):
-            await sync_task
-
-
-app = FastAPI(title="Consultor de Saúde API", lifespan=lifespan)
+app = FastAPI(title="Consultor de Saúde API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -166,71 +134,6 @@ async def run_supabase_helper(
     )
 
 
-async def run_sync_helper(action: str = "sync") -> dict[str, Any]:
-    return await run_json_helper(
-        ["bun", str(SYNC_HELPER), action],
-        timeout_seconds=SYNC_TIMEOUT_SECONDS,
-        connector_name="sincronização da planilha",
-    )
-
-
-async def synchronize_health_sheet(*, force: bool) -> dict[str, Any]:
-    async with HEALTH_SYNC_LOCK:
-        HEALTH_SYNC_STATE["running"] = True
-        HEALTH_SYNC_STATE["last_checked_at"] = utc_now()
-        try:
-            metadata = await run_sync_helper("metadata")
-            modified_time = metadata.get("source", {}).get("modifiedTime")
-
-            if (
-                not force
-                and modified_time
-                and modified_time == HEALTH_SYNC_STATE["last_modified_time"]
-            ):
-                return {
-                    "ok": True,
-                    "skipped": True,
-                    "reason": "spreadsheet_unchanged",
-                    "source": metadata.get("source"),
-                }
-
-            result = await run_sync_helper()
-            HEALTH_SYNC_STATE.update(
-                {
-                    "last_synced_at": utc_now(),
-                    "last_modified_time": modified_time,
-                    "last_result": {
-                        key: result.get(key)
-                        for key in (
-                            "total_rows",
-                            "new_rows",
-                            "ignored_rows",
-                            "invalid_rows",
-                            "tables",
-                        )
-                    },
-                    "last_error": None,
-                },
-            )
-            return result
-        except Exception as error:
-            HEALTH_SYNC_STATE["last_error"] = str(error)
-            raise
-        finally:
-            HEALTH_SYNC_STATE["running"] = False
-
-
-async def health_sync_loop() -> None:
-    while True:
-        try:
-            await synchronize_health_sheet(force=False)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            pass
-        await asyncio.sleep(HEALTH_SYNC_INTERVAL_SECONDS)
-
-
 @app.post("/process-input")
 async def process_input(body: ProcessInputRequest):
     return {"status": "ok", "items": []}
@@ -246,19 +149,6 @@ async def save_records(
         payload=body.model_dump(),
     )
 
-@app.post("/sync-health-sheet")
-@app.post("/sync-health-records")
-async def sync_health_records(
-    _: Annotated[None, Depends(require_write_access)],
-):
-    return await synchronize_health_sheet(force=True)
-
-
-@app.get("/sync-health-records/status")
-async def sync_health_records_status():
-    return {"ok": True, **HEALTH_SYNC_STATE}
-
-
 @app.get("/daily-summary")
 async def daily_summary(data: date | None = None):
     return await run_supabase_helper(
@@ -270,26 +160,6 @@ async def daily_summary(data: date | None = None):
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-@app.get("/get-context")
-async def get_context():
-    result = await run_json_helper(
-        ["bun", str(CONTEXT_HELPER), "context"],
-        timeout_seconds=CONTEXT_TIMEOUT_SECONDS,
-        connector_name="Google Drive",
-        error_statuses={
-            "folder_not_found": 404,
-            "context_file_not_found": 404,
-            "multiple_context_files": 409,
-        },
-    )
-
-    return {
-        "status": "ok",
-        "context": result["context"],
-        "source": result["source"],
-    }
 
 
 if __name__ == "__main__":
