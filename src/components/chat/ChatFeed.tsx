@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ValidationCard } from "./ValidationCard";
 import type { ChatMessage } from "@/providers/chat-context";
 
 export function ChatFeed({
   messages,
   onValidationResolved,
+  onRetry,
 }: {
   messages: ChatMessage[];
   onValidationResolved: (id: string, status: "saved" | "discarded") => void;
+  onRetry: (id: string) => void;
 }) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -28,7 +32,12 @@ export function ChatFeed({
 
         {/* As mensagens do chat entram aqui embaixo */}
         {messages.map((m) => (
-          <Bubble key={m.id} m={m} onResolved={(s) => onValidationResolved(m.id, s)} />
+          <Bubble
+            key={m.id}
+            m={m}
+            onResolved={(s) => onValidationResolved(m.id, s)}
+            onRetry={() => onRetry(m.id)}
+          />
         ))}
 
         <div ref={bottomRef} />
@@ -71,9 +80,11 @@ function GreetingHeader() {
 function Bubble({
   m,
   onResolved,
+  onRetry,
 }: {
   m: ChatMessage;
   onResolved: (s: "saved" | "discarded") => void;
+  onRetry: () => void;
 }) {
   if (m.role === "user") {
     return (
@@ -103,7 +114,11 @@ function Bubble({
   if (m.kind === "loading") {
     return (
       <div className="flex justify-start">
-        <div className="w-full max-w-[90%] space-y-2 rounded-2xl rounded-tl-sm border border-border bg-card p-3">
+        <div
+          className="w-full max-w-[90%] space-y-2 rounded-2xl rounded-tl-sm border border-border bg-card p-3"
+          aria-label="Analisando registro"
+        >
+          <p className="text-sm text-muted-foreground">Analisando seu registro...</p>
           <Skeleton className="h-3 w-1/3" />
           <Skeleton className="h-3 w-2/3" />
           <Skeleton className="h-3 w-1/2" />
@@ -117,6 +132,30 @@ function Bubble({
       <div className="flex justify-start">
         <div className="max-w-[92%] rounded-3xl rounded-tl-sm border border-border bg-card px-4 py-3 text-base leading-relaxed sm:max-w-[85%]">
           {m.text}
+        </div>
+      </div>
+    );
+  }
+
+  if (m.kind === "error") {
+    return (
+      <div className="flex justify-start">
+        <div className="w-full max-w-[92%] space-y-3 rounded-3xl rounded-tl-sm border border-destructive/30 bg-destructive/5 px-4 py-3 text-base leading-relaxed sm:max-w-[85%]">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-1 size-4 shrink-0 text-destructive" />
+            <p>{m.text}</p>
+          </div>
+          {m.retryable && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="min-h-10"
+              onClick={onRetry}
+              data-testid="retry-analysis"
+            >
+              <RefreshCw className="size-4" /> Tentar novamente
+            </Button>
+          )}
         </div>
       </div>
     );

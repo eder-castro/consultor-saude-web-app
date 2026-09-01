@@ -81,6 +81,11 @@ export function getApiErrorMessage(error: unknown): string {
   return "Não foi possível concluir a análise. Tente novamente.";
 }
 
+export function isRetryableApiError(error: unknown): boolean {
+  if (error instanceof ApiError) return [429, 502, 503, 504].includes(error.status);
+  return error instanceof TypeError;
+}
+
 export type AuthUser = { id: string; email: string };
 export type Credentials = { email: string; password: string };
 export type ChatHistoryRow = {

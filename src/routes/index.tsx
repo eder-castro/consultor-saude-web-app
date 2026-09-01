@@ -3,10 +3,15 @@ import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChatFeed } from "@/components/chat/ChatFeed";
 import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
-import { getApiErrorMessage, prepareHealthExamFile, processInput } from "@/lib/api";
+import {
+  getApiErrorMessage,
+  isRetryableApiError,
+  prepareHealthExamFile,
+  processInput,
+} from "@/lib/api";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
-import { useChat, type ChatMessage } from "@/providers/chat-context";
+import { useChat, type ChatMessage, type RetryInput } from "@/providers/chat-context";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -51,50 +56,79 @@ function ChatPage() {
     const loadingId = uid();
     setMessages((m) => [...m, userMsg, { id: loadingId, role: "assistant", kind: "loading" }]);
 
+    let retryInput: RetryInput | undefined;
     try {
-      let payload;
-      if (s.kind === "text") {
-        payload = await processInput({ text: s.text });
-      } else {
-        const prepared = await prepareHealthExamFile(s.file);
-        payload = await processInput({
-          imageBase64: prepared.file_base64,
-          text: s.caption || undefined,
-          mimeType: prepared.mime_type,
-        });
-      }
-
-      setMessages((m) =>
-        m.map((msg) =>
-          msg.id === loadingId
-            ? {
-                id: loadingId,
-                role: "assistant",
-                kind: "validation",
-                payload,
-                status: "pending",
-              }
-            : msg,
-        ),
-      );
+      retryInput = await makeRetryInput(s);
+      await analyze(loadingId, retryInput);
     } catch (e) {
-      const errorMessage = getApiErrorMessage(e);
-      setMessages((m) =>
-        m.map((msg) =>
-          msg.id === loadingId
-            ? {
-                id: loadingId,
-                role: "assistant",
-                kind: "text",
-                text: `Não consegui analisar este registro. ${errorMessage}`,
-              }
-            : msg,
-        ),
-      );
-      toast.error(errorMessage);
+      showAnalysisError(loadingId, e, retryInput);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function retryAnalysis(id: string) {
+    const message = messages.find(
+      (item): item is Extract<ChatMessage, { kind: "error" }> =>
+        item.id === id && item.role === "assistant" && item.kind === "error",
+    );
+    if (!message?.retryInput || busy) return;
+
+    setBusy(true);
+    setMessages((current) =>
+      current.map((item) => (item.id === id ? { id, role: "assistant", kind: "loading" } : item)),
+    );
+    try {
+      await analyze(id, message.retryInput);
+    } catch (e) {
+      showAnalysisError(id, e, message.retryInput);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function analyze(id: string, input: RetryInput) {
+    const payload = await processInput(
+      input.kind === "text"
+        ? { text: input.text }
+        : {
+            imageBase64: input.imageBase64,
+            text: input.caption || undefined,
+            mimeType: input.mimeType,
+          },
+    );
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === id
+          ? {
+              id,
+              role: "assistant",
+              kind: "validation",
+              payload,
+              status: "pending",
+            }
+          : message,
+      ),
+    );
+  }
+
+  function showAnalysisError(id: string, error: unknown, retryInput?: RetryInput) {
+    const errorMessage = getApiErrorMessage(error);
+    setMessages((current) =>
+      current.map((message) =>
+        message.id === id
+          ? {
+              id,
+              role: "assistant",
+              kind: "error",
+              text: `Não consegui analisar este registro. ${errorMessage}`,
+              retryable: isRetryableApiError(error),
+              retryInput,
+            }
+          : message,
+      ),
+    );
+    toast.error(errorMessage);
   }
 
   function resolveValidation(id: string, status: "saved" | "discarded") {
@@ -112,7 +146,11 @@ function ChatPage() {
       <div className="flex h-full w-full flex-col overflow-hidden">
         {/* O ChatFeed ocupa todo o espaço vertical disponível */}
         <div className="min-h-0 flex-1 overflow-hidden">
-          <ChatFeed messages={messages} onValidationResolved={resolveValidation} />
+          <ChatFeed
+            messages={messages}
+            onValidationResolved={resolveValidation}
+            onRetry={retryAnalysis}
+          />
         </div>
 
         {/* O Composer fica preso na parte inferior sem empurrar a tela */}
@@ -120,4 +158,15 @@ function ChatPage() {
       </div>
     </AppShell>
   );
+}
+
+async function makeRetryInput(s: ComposerSubmit): Promise<RetryInput> {
+  if (s.kind === "text") return { kind: "text", text: s.text };
+  const prepared = await prepareHealthExamFile(s.file);
+  return {
+    kind: "image",
+    imageBase64: prepared.file_base64,
+    mimeType: prepared.mime_type,
+    caption: s.caption,
+  };
 }

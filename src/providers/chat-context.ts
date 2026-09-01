@@ -10,10 +10,22 @@ export type ChatMessage =
   | {
       id: string;
       role: "assistant";
+      kind: "error";
+      text: string;
+      retryable: boolean;
+      retryInput?: RetryInput;
+    }
+  | {
+      id: string;
+      role: "assistant";
       kind: "validation";
       payload: ValidationPayload;
       status: "pending" | "saved" | "discarded";
     };
+
+export type RetryInput =
+  | { kind: "text"; text: string }
+  | { kind: "image"; imageBase64: string; mimeType: string; caption: string };
 
 export type ChatContextValue = {
   messages: ChatMessage[];

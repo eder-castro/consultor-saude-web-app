@@ -25,6 +25,7 @@ type Props = {
 export function ValidationCard({ payload, status, onResolved }: Props) {
   const [groups, setGroups] = useState<ValidationGroup[]>(payload.grupos);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const readonly = status !== "pending";
 
   function update(groupType: EventoTipo, id: string, patch: Partial<Item>) {
@@ -82,12 +83,15 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
       return;
     }
     setSaving(true);
+    setSaveError(null);
     try {
       await saveRecords({ grupos: selectedGroups });
       toast.success(`${selectedCount} item(s) salvos.`);
       onResolved("saved");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao salvar.");
+      const message = e instanceof Error ? e.message : "Falha ao salvar.";
+      setSaveError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -107,6 +111,11 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
         {status === "saved" && (
           <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
             <Check className="size-3" /> Salvo
+          </span>
+        )}
+        {status === "pending" && (
+          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">
+            Revise antes de confirmar
           </span>
         )}
         {status === "discarded" && (
@@ -174,6 +183,15 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
           </section>
         ))}
       </div>
+
+      {saveError && (
+        <p
+          role="alert"
+          className="mt-3 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          Não foi possível salvar ainda. {saveError}
+        </p>
+      )}
 
       {!readonly && (
         <>

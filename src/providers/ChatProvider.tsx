@@ -74,6 +74,15 @@ function serializeMessage(
       sequence,
     };
   }
+  if (message.kind === "error") {
+    return {
+      client_id: message.id,
+      role: "assistant",
+      kind: "text",
+      payload: { text: message.text, error: true },
+      sequence,
+    };
+  }
   return {
     client_id: message.id,
     role: "assistant",
@@ -84,6 +93,16 @@ function serializeMessage(
 }
 
 function deserializeMessage(row: ChatHistoryRow): ChatMessage | null {
+  if (row.kind === "text" && row.role === "assistant" && row.payload.error === true) {
+    if (typeof row.payload.text !== "string") return null;
+    return {
+      id: row.client_id,
+      role: "assistant",
+      kind: "error",
+      text: row.payload.text,
+      retryable: false,
+    };
+  }
   if (row.kind === "text" && typeof row.payload.text === "string") {
     return { id: row.client_id, role: row.role, kind: "text", text: row.payload.text };
   }
