@@ -5,3 +5,4 @@
 - [Persistent chat history](persistent-chat-history.md) — Keep owner-scoped chat across reloads without persisting original uploaded image bytes.
 - [PostgreSQL integration daemons](postgres-integration-daemons.md) — Redirect daemon logs and pin the cluster user in Bun-owned PostgreSQL tests.
 - [Development watch boundaries](development-watch-boundaries.md) — Ignore Replit internal directories; reload storms can split SSR context modules.
+- [Supabase connector throttling](supabase-connector-throttling.md) — Pace context reads and retry safe requests; the connector enforces a per-Repl request ceiling.
