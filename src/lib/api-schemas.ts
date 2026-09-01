@@ -32,6 +32,37 @@ export type ValidationPayload = z.infer<typeof ValidationPayloadSchema>;
 
 export const SaveResponseSchema = z.object({ ok: z.literal(true) });
 
+export const SleepReviewRecordSchema = z.object({
+  id: z.string(),
+  etapa: z.string(),
+  etapa_label: z.string(),
+  valor_existente: z.string().nullable(),
+  minutos_existentes: z.number(),
+  duracao_minutos: z.string().nullable(),
+});
+export type SleepReviewRecord = z.infer<typeof SleepReviewRecordSchema>;
+
+export const SleepReviewGroupSchema = z.object({
+  id: z.string(),
+  data: z.string(),
+  inicio: z.string().nullable(),
+  fim: z.string().nullable(),
+  registros: z.array(SleepReviewRecordSchema).min(2),
+});
+export type SleepReviewGroup = z.infer<typeof SleepReviewGroupSchema>;
+
+export const SleepReviewsResponseSchema = z.object({
+  ok: z.literal(true),
+  revisoes: z.array(SleepReviewGroupSchema),
+});
+
+export const SleepCorrectionResponseSchema = z.object({
+  ok: z.literal(true),
+  corrected: z.boolean(),
+  replaced: z.number(),
+  record_id: z.string(),
+});
+
 export const DailySummarySchema = z.object({
   data: z.string(),
   agua_ml: z.number(),

@@ -386,6 +386,110 @@ function parseSleepHours(value) {
   return number === null ? null : number / 60;
 }
 
+const LEGACY_SLEEP_STAGES = [
+  { key: "sono_profundo_min", label: "Sono profundo" },
+  { key: "sono_leve_min", label: "Sono leve" },
+  { key: "sono_rem_min", label: "Sono REM" },
+  { key: "acordado_min", label: "Acordado" },
+];
+
+function legacySleepStage(row) {
+  const populated = LEGACY_SLEEP_STAGES.filter(
+    ({ key }) => row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== "",
+  );
+  if (populated.length !== 1 || durationMinutes(row[populated[0].key]) === null) return null;
+  return {
+    key: populated[0].key,
+    label: populated[0].label,
+    value: row[populated[0].key],
+    minutes: durationMinutes(row[populated[0].key]),
+  };
+}
+
+export async function listSleepReviews(connectors, ownerId) {
+  const id = requireOwnerId(ownerId);
+  const params = new URLSearchParams({
+    select:
+      "id,data,inicio,fim,duracao_minutos,sono_profundo_min,sono_leve_min,sono_rem_min,acordado_min",
+    owner_id: `eq.${id}`,
+    order: "data.asc,id.asc",
+    limit: "500",
+  });
+  const response = await supabaseRequest(connectors, `/rest/v1/sono?${params.toString()}`);
+  const rawRows = await response.text();
+  const rows = JSON.parse(rawRows.replace(/"id"\s*:\s*(\d+)/g, (_match, id) => `"id":"${id}"`));
+  const groups = new Map();
+
+  for (const row of rows) {
+    const stage = legacySleepStage(row);
+    if (!stage) continue;
+    const groupKey = [row.data ?? "", row.inicio ?? "", row.fim ?? ""].join("|");
+    const group = groups.get(groupKey) ?? {
+      id: groupKey,
+      data: row.data,
+      inicio: row.inicio ?? null,
+      fim: row.fim ?? null,
+      registros: [],
+    };
+    group.registros.push({
+      id: String(row.id),
+      etapa: stage.key,
+      etapa_label: stage.label,
+      valor_existente: stage.value,
+      minutos_existentes: stage.minutes,
+      duracao_minutos: row.duracao_minutos ?? null,
+    });
+    groups.set(groupKey, group);
+  }
+
+  return {
+    ok: true,
+    revisoes: [...groups.values()].filter((group) => group.registros.length >= 2),
+  };
+}
+
+export async function consolidateSleepRecords(connectors, payload) {
+  const ownerId = requireOwnerId(payload.owner_id);
+  const recordIds = [...new Set((payload.record_ids ?? []).map((value) => String(value).trim()))];
+  if (
+    recordIds.length === 0 ||
+    recordIds.length > 20 ||
+    recordIds.some((value) => {
+      if (!/^\d+$/.test(value)) return true;
+      const id = BigInt(value);
+      return id < 1n || id > 9223372036854775807n;
+    })
+  ) {
+    throw new SupabaseRecordsError(
+      "invalid_sleep_records",
+      "Os registros selecionados não são válidos.",
+      422,
+    );
+  }
+  if (
+    !Number.isInteger(payload.total_sleep_min) ||
+    payload.total_sleep_min < 1 ||
+    payload.total_sleep_min > 1440
+  ) {
+    throw new SupabaseRecordsError(
+      "invalid_sleep_total",
+      "Informe o total correto entre 1 e 1440 minutos.",
+      422,
+    );
+  }
+
+  const response = await supabaseRequest(connectors, "/rest/v1/rpc/consolidate_sleep_records", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      p_owner_id: ownerId,
+      p_record_ids: recordIds,
+      p_total_sleep_min: payload.total_sleep_min,
+    }),
+  });
+  return response.json();
+}
+
 function buildDailySummary(data, datasets) {
   const meals = new Map();
   let waterMl = 0;
@@ -868,6 +972,13 @@ async function main() {
   const action = process.argv[2];
 
   if (action === "save") return saveRecords(connectors);
+  if (action === "list-sleep-reviews") {
+    const payload = await readJsonInput();
+    return listSleepReviews(connectors, payload.owner_id);
+  }
+  if (action === "consolidate-sleep") {
+    return consolidateSleepRecords(connectors, await readJsonInput());
+  }
   if (action === "summary") {
     const payload = await readJsonInput();
     return dailySummary(connectors, process.argv[3], requireOwnerId(payload.owner_id));

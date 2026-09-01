@@ -1,10 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { generateDailyReport, getDailySummary } from "@/lib/api";
+import { generateDailyReport, getDailySummary, getSleepReviews } from "@/lib/api";
 import { Activity, Droplet, Moon, Scale, Utensils, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -34,6 +34,11 @@ function DashboardPage() {
     queryFn: getDailySummary,
     refetchOnWindowFocus: true,
   });
+  const sleepReviews = useQuery({
+    queryKey: ["sleep-reviews"],
+    queryFn: getSleepReviews,
+    refetchOnWindowFocus: true,
+  });
   const report = useMutation({
     mutationFn: generateDailyReport,
     onSuccess: () => toast.success("Relatório do dia gerado."),
@@ -56,6 +61,27 @@ function DashboardPage() {
             </>
           ) : (
             <>
+              {sleepReviews.data && sleepReviews.data.length > 0 && (
+                <Card>
+                  <div className="flex items-start gap-3">
+                    <Moon className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium">
+                        Há registros antigos de sono para revisar
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                        Confira os valores salvos e informe o total correto antes de consolidar.
+                      </p>
+                      <Link
+                        to="/perfil"
+                        className="mt-3 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline"
+                      >
+                        Revisar registros de sono
+                      </Link>
+                    </div>
+                  </div>
+                </Card>
+              )}
               <Card>
                 <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">

@@ -6,6 +6,8 @@ import {
   ReviewHealthExamResponseSchema,
   ValidationPayloadSchema,
   SaveResponseSchema,
+  SleepCorrectionResponseSchema,
+  SleepReviewsResponseSchema,
   type DailySummary,
   type Exam,
   type ExamExtractedData,
@@ -14,6 +16,7 @@ import {
   type Item,
   type ValidationGroup,
   type ValidationPayload,
+  type SleepReviewGroup,
 } from "./api-schemas";
 import { getMockSummary, recordItems } from "./mock-store";
 
@@ -308,6 +311,26 @@ export async function saveRecords(payload: { grupos: ValidationGroup[] }): Promi
     body: JSON.stringify(payload),
   });
   return SaveResponseSchema.parse(json);
+}
+
+export async function getSleepReviews(): Promise<SleepReviewGroup[]> {
+  if (isMockMode()) return [];
+  const json = await fetchApi("/sleep-reviews", { method: "GET" });
+  return SleepReviewsResponseSchema.parse(json).revisoes;
+}
+
+export async function consolidateSleepRecords(input: {
+  record_ids: string[];
+  total_sleep_min: number;
+}): Promise<{ ok: true; corrected: boolean; replaced: number; record_id: string }> {
+  if (isMockMode()) {
+    return { ok: true, corrected: true, replaced: input.record_ids.length, record_id: "mock" };
+  }
+  const json = await fetchApi("/sleep-reviews/consolidate", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+  return SleepCorrectionResponseSchema.parse(json);
 }
 
 export async function getDailySummary(): Promise<DailySummary> {

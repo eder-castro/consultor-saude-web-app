@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import {
+  consolidateSleepRecords,
+  listSleepReviews,
   reviewHealthExam,
   saveRecordsPayload,
   upsertHealthContext,
@@ -97,6 +99,100 @@ test("consolidates sleep stages into one total sleep record", async () => {
       acordado_min: "15 min",
     }),
   ]);
+});
+
+test("lists suspicious legacy sleep rows without mutating them", async () => {
+  const requests = [];
+  const connectors = {
+    proxy: async (name, path, init) => {
+      requests.push({ name, path, init });
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify([
+            {
+              id: 9007199254740993n.toString(),
+              data: "2026-08-20",
+              inicio: "23:00",
+              fim: "07:00",
+              duracao_minutos: "60 min",
+              sono_profundo_min: "60 min",
+              sono_leve_min: null,
+              sono_rem_min: null,
+              acordado_min: null,
+            },
+            {
+              id: 9007199254740994n.toString(),
+              data: "2026-08-20",
+              inicio: "23:00",
+              fim: "07:00",
+              duracao_minutos: "240 min",
+              sono_profundo_min: null,
+              sono_leve_min: "240 min",
+              sono_rem_min: null,
+              acordado_min: null,
+            },
+            {
+              id: 9007199254740995n.toString(),
+              data: "2026-08-21",
+              inicio: null,
+              fim: null,
+              duracao_minutos: "420 min",
+              sono_profundo_min: "60 min",
+              sono_leve_min: "240 min",
+              sono_rem_min: "120 min",
+              acordado_min: null,
+            },
+          ]).replace(/"id":"(\\d+)"/g, '"id":$1'),
+      };
+    },
+  };
+
+  const result = await listSleepReviews(connectors, "8e165e4f-59bc-4b94-9508-4f596ee87584");
+
+  expect(result.revisoes).toHaveLength(1);
+  expect(result.revisoes[0].registros).toEqual([
+    expect.objectContaining({
+      id: "9007199254740993",
+      etapa_label: "Sono profundo",
+      valor_existente: "60 min",
+    }),
+    expect.objectContaining({
+      id: "9007199254740994",
+      etapa_label: "Sono leve",
+      valor_existente: "240 min",
+    }),
+  ]);
+  expect(requests).toHaveLength(1);
+  expect(requests[0].init?.method).toBeUndefined();
+  expect(requests[0].path).toContain("owner_id=eq.8e165e4f-59bc-4b94-9508-4f596ee87584");
+});
+
+test("consolidates only selected numeric rows for the authenticated owner", async () => {
+  const requests = [];
+  const connectors = {
+    proxy: async (name, path, init) => {
+      requests.push({ name, path, init });
+      return {
+        ok: true,
+        json: async () => ({ ok: true, corrected: true, replaced: 2, record_id: "20" }),
+      };
+    },
+  };
+
+  const result = await consolidateSleepRecords(connectors, {
+    owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
+    record_ids: ["9007199254740993", "9007199254740994", "9007199254740994"],
+    total_sleep_min: 420,
+  });
+
+  expect(result).toEqual({ ok: true, corrected: true, replaced: 2, record_id: "20" });
+  expect(requests[0].path).toBe("/rest/v1/rpc/consolidate_sleep_records");
+  expect(JSON.parse(requests[0].init.body)).toEqual({
+    p_owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
+    p_record_ids: ["9007199254740993", "9007199254740994"],
+    p_total_sleep_min: 420,
+  });
 });
 
 test("upserts health context with the authenticated owner id", async () => {

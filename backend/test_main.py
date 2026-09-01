@@ -329,6 +329,38 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(helper.await_args.kwargs["payload"]["owner_id"], "owner-a")
         self.assertEqual(helper.await_args.kwargs["payload"]["status"], "confirmed")
 
+    async def test_sleep_review_routes_derive_owner_from_session(self) -> None:
+        helper = AsyncMock(
+            side_effect=[
+                {"ok": True, "revisoes": []},
+                {
+                    "ok": True,
+                    "corrected": True,
+                    "replaced": 2,
+                    "record_id": "20",
+                },
+            ]
+        )
+        with patch.object(main, "run_supabase_helper", new=helper):
+            await main.sleep_reviews({"id": "owner-a"})
+            await main.consolidate_sleep(
+                main.SleepCorrectionRequest(record_ids=["11", "12"], total_sleep_min=420),
+                {"id": "owner-a"},
+            )
+
+        self.assertEqual(
+            helper.await_args_list[0].kwargs,
+            {"payload": {"owner_id": "owner-a"}},
+        )
+        self.assertEqual(
+            helper.await_args_list[1].kwargs["payload"],
+            {
+                "record_ids": ["11", "12"],
+                "total_sleep_min": 420,
+                "owner_id": "owner-a",
+            },
+        )
+
     async def test_ambiguous_image_escalates_without_losing_economy_result(self) -> None:
         economy = gemini_response(
             {

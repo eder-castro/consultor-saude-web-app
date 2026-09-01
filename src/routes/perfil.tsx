@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Loader2, Plus, Trash2, Upload } from "lucide-react";
+import { FileText, Loader2, Moon, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -10,11 +10,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   getHealthContext,
+  getSleepReviews,
+  consolidateSleepRecords,
   prepareHealthExamFile,
   processHealthExam,
   reviewHealthExam,
 } from "@/lib/api";
-import type { Exam, ExamMarker } from "@/lib/api-schemas";
+import type { Exam, ExamMarker, SleepReviewGroup } from "@/lib/api-schemas";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/providers/auth-context";
 
 export const Route = createFileRoute("/perfil")({
@@ -43,6 +46,11 @@ function PerfilPage() {
   const context = useQuery({
     queryKey: ["health-context"],
     queryFn: getHealthContext,
+    refetchOnWindowFocus: true,
+  });
+  const sleepReviews = useQuery({
+    queryKey: ["sleep-reviews"],
+    queryFn: getSleepReviews,
     refetchOnWindowFocus: true,
   });
   const upload = useMutation({
@@ -81,6 +89,37 @@ function PerfilPage() {
             <p className="mt-2 text-sm text-muted-foreground">
               {clinicalSummary(context.data?.profile?.clinical_profile)}
             </p>
+          </section>
+
+          <section className="rounded-2xl border border-border bg-card p-5">
+            <div className="flex items-center gap-2">
+              <Moon className="size-4 text-primary" />
+              <h2 className="font-semibold">Revisão de sono antigo</h2>
+            </div>
+            <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+              Algumas sessões antigas foram salvas em linhas separadas por fase. Nada será alterado
+              automaticamente: confira os valores, selecione a sessão inteira que deseja substituir
+              e informe o total correto que você confirma.
+            </p>
+            {sleepReviews.isLoading ? (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Procurando registros para revisar...
+              </p>
+            ) : sleepReviews.isError ? (
+              <p role="alert" className="mt-4 text-sm text-destructive">
+                Não foi possível carregar os registros antigos de sono.
+              </p>
+            ) : sleepReviews.data?.length ? (
+              <div className="mt-4 space-y-4">
+                {sleepReviews.data.map((review) => (
+                  <SleepReviewCard key={review.id} review={review} />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Nenhum registro antigo de sono precisa de revisão.
+              </p>
+            )}
           </section>
 
           <section className="rounded-2xl border border-border bg-card p-5">
@@ -165,6 +204,123 @@ function PerfilPage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+function SleepReviewCard({ review }: { review: SleepReviewGroup }) {
+  const queryClient = useQueryClient();
+  const [sessionSelected, setSessionSelected] = useState(false);
+  const [totalSleepMin, setTotalSleepMin] = useState("");
+  const correction = useMutation({
+    mutationFn: () =>
+      consolidateSleepRecords({
+        record_ids: review.registros.map((item) => item.id),
+        total_sleep_min: Number(totalSleepMin),
+      }),
+    onSuccess: (result) => {
+      toast.success(
+        result.corrected
+          ? `${result.replaced} linhas substituídas pelo total confirmado.`
+          : "Esta revisão já havia sido aplicada.",
+      );
+      queryClient.setQueryData<SleepReviewGroup[]>(["sleep-reviews"], (current) =>
+        current?.filter((item) => item.id !== review.id),
+      );
+      void queryClient.invalidateQueries({ queryKey: ["sleep-reviews"] });
+      void queryClient.invalidateQueries({ queryKey: ["daily-summary"] });
+    },
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : "Falha ao corrigir o sono."),
+  });
+
+  useEffect(() => {
+    setSessionSelected(false);
+    setTotalSleepMin("");
+  }, [review]);
+
+  function submit() {
+    const total = Number(totalSleepMin);
+    if (!sessionSelected) {
+      toast.error("Selecione a sessão de sono.");
+      return;
+    }
+    if (!Number.isInteger(total) || total < 1 || total > 1440) {
+      toast.error("Informe o total correto entre 1 e 1440 minutos.");
+      return;
+    }
+    correction.mutate();
+  }
+
+  const parsedTotal = Number(totalSleepMin);
+  const canSubmit =
+    sessionSelected && Number.isInteger(parsedTotal) && parsedTotal >= 1 && parsedTotal <= 1440;
+
+  return (
+    <div className="rounded-xl border border-primary/25 bg-primary/[0.03] p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold">{formatSleepReviewDate(review.data)}</h3>
+        <span className="text-xs text-muted-foreground">
+          {review.registros.length} linhas encontradas
+        </span>
+      </div>
+      {(review.inicio || review.fim) && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Horário salvo: {review.inicio || "não informado"} a {review.fim || "não informado"}
+        </p>
+      )}
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Estes são os valores existentes. A soma não é usada como sugestão de total dormido.
+      </p>
+      <label className="mt-3 flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-3 text-sm font-medium">
+        <Checkbox
+          checked={sessionSelected}
+          disabled={correction.isPending}
+          onCheckedChange={(value) => setSessionSelected(value === true)}
+          aria-label="Selecionar a sessão inteira"
+          className="size-5 shrink-0"
+        />
+        Selecionar esta sessão inteira
+      </label>
+      <ul className="mt-3 space-y-2">
+        {review.registros.map((record) => (
+          <li
+            key={record.id}
+            className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2"
+          >
+            <span className="min-w-0 flex-1 text-sm">{record.etapa_label}</span>
+            <span className="text-sm font-medium">{record.valor_existente || "não informado"}</span>
+          </li>
+        ))}
+      </ul>
+      <label className="mt-4 block text-sm font-medium" htmlFor={`sleep-total-${review.id}`}>
+        Total correto confirmado (minutos)
+        <span className="ml-1 font-normal text-muted-foreground">1 a 1440</span>
+      </label>
+      <Input
+        id={`sleep-total-${review.id}`}
+        className="mt-1 h-11"
+        type="number"
+        min={1}
+        max={1440}
+        step={1}
+        inputMode="numeric"
+        value={totalSleepMin}
+        disabled={correction.isPending}
+        onChange={(event) => setTotalSleepMin(event.target.value)}
+        placeholder="Ex.: 420"
+      />
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+        Digite o total que você confirma. Ele não será calculado a partir das fases exibidas.
+      </p>
+      <Button
+        className="mt-4 min-h-11 w-full"
+        disabled={correction.isPending || !canSubmit}
+        onClick={submit}
+      >
+        {correction.isPending && <Loader2 className="size-4 animate-spin" />}
+        {correction.isPending ? "Aplicando correção..." : "Substituir sessão selecionada"}
+      </Button>
+    </div>
   );
 }
 
@@ -367,6 +523,13 @@ function lines(value: string) {
 }
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString("pt-BR");
+}
+function formatSleepReviewDate(data: string) {
+  return new Date(`${data}T12:00:00`).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
 }
 function clinicalSummary(profile: unknown) {
   if (!profile) return "Nenhum contexto clínico registrado ainda.";

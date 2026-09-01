@@ -102,6 +102,11 @@ class SaveRecordsRequest(BaseModel):
     grupos: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class SleepCorrectionRequest(BaseModel):
+    record_ids: list[str] = Field(min_length=1, max_length=20)
+    total_sleep_min: int = Field(gt=0, le=1440)
+
+
 class CredentialsRequest(BaseModel):
     email: str = Field(min_length=3, max_length=320)
     password: str = Field(min_length=8, max_length=128)
@@ -443,6 +448,22 @@ async def save_records(
     payload = body.model_dump()
     payload["owner_id"] = user["id"]
     return await run_supabase_helper("save", payload=payload)
+
+
+@app.get("/sleep-reviews")
+async def sleep_reviews(user: Annotated[dict[str, Any], Depends(require_authenticated_user)]):
+    return await run_supabase_helper("list-sleep-reviews", payload={"owner_id": user["id"]})
+
+
+@app.post("/sleep-reviews/consolidate")
+async def consolidate_sleep(
+    body: SleepCorrectionRequest,
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+):
+    return await run_supabase_helper(
+        "consolidate-sleep",
+        payload={**body.model_dump(), "owner_id": user["id"]},
+    )
 
 
 @app.get("/daily-summary")
