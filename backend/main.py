@@ -401,12 +401,19 @@ async def run_json_helper(
         status_code = connector_error.get("status")
         if status_code is None:
             status_code = (error_statuses or {}).get(error_code, 502)
+        status_code = int(status_code)
+        detail = connector_error.get(
+            "message",
+            f"Não foi possível acessar os dados pelo conector {connector_name}.",
+        )
+        headers = None
+        if connector_name == "Supabase" and status_code == 429:
+            detail = "O armazenamento está temporariamente ocupado. Tente novamente em alguns segundos."
+            headers = {"Retry-After": "2"}
         raise HTTPException(
-            status_code=int(status_code),
-            detail=connector_error.get(
-                "message",
-                f"Não foi possível acessar os dados pelo conector {connector_name}.",
-            ),
+            status_code=status_code,
+            detail=detail,
+            headers=headers,
         )
 
     return result

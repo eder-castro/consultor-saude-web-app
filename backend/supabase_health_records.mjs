@@ -15,6 +15,8 @@ const HEALTH_TABLES = [
   "analise",
   "log_json",
 ];
+const SUPABASE_REQUEST_SPACING_MS = 125;
+let nextSupabaseRequestAt = 0;
 
 class SupabaseRecordsError extends Error {
   constructor(code, message, status = 502) {
@@ -41,14 +43,32 @@ async function supabaseRequest(connectors, path, init = {}) {
       503,
     );
   }
-  const response = await connectors.proxy(CONNECTOR_NAME, path, {
-    ...init,
-    headers: {
-      ...(init.headers ?? {}),
-      "X-Health-App-Secret": appSecret,
-    },
-  });
-  if (!response.ok) {
+  const method = String(init.method ?? "GET").toUpperCase();
+  const safeToRetry = method === "GET" || method === "HEAD";
+  const maxAttempts = safeToRetry ? 3 : 1;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const now = Date.now();
+    const waitMs = Math.max(0, nextSupabaseRequestAt - now);
+    nextSupabaseRequestAt = Math.max(nextSupabaseRequestAt, now) + SUPABASE_REQUEST_SPACING_MS;
+    if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
+
+    const response = await connectors.proxy(CONNECTOR_NAME, path, {
+      ...init,
+      headers: {
+        ...(init.headers ?? {}),
+        "X-Health-App-Secret": appSecret,
+      },
+    });
+    if (response.ok) return response;
+
+    if (safeToRetry && [429, 503].includes(response.status) && attempt < maxAttempts - 1) {
+      const retryAfter = Number(response.headers?.get?.("retry-after"));
+      const delayMs = Number.isFinite(retryAfter) && retryAfter >= 0 ? retryAfter * 1000 : 250;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(delayMs, 3000)));
+      continue;
+    }
+
     const detail = (await response.text()).slice(0, 500);
     throw new SupabaseRecordsError(
       "supabase_error",
@@ -56,7 +76,8 @@ async function supabaseRequest(connectors, path, init = {}) {
       response.status,
     );
   }
-  return response;
+
+  throw new SupabaseRecordsError("supabase_error", "Supabase não respondeu.", 502);
 }
 
 function saoPauloNow() {

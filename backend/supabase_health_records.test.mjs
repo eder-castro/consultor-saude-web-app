@@ -168,6 +168,45 @@ test("lists suspicious legacy sleep rows without mutating them", async () => {
   expect(requests[0].path).toContain("owner_id=eq.8e165e4f-59bc-4b94-9508-4f596ee87584");
 });
 
+test("retries rate-limited read requests before failing", async () => {
+  let calls = 0;
+  const connectors = {
+    proxy: async () => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: false,
+          status: 429,
+          headers: { get: () => "0" },
+          text: async () => '{"error":"rate limit"}',
+        };
+      }
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify([
+            {
+              id: "1",
+              data: "2026-08-20",
+              inicio: "23:00",
+              fim: "07:00",
+              duracao_minutos: "420 min",
+              sono_profundo_min: "60 min",
+              sono_leve_min: "240 min",
+              sono_rem_min: "120 min",
+              acordado_min: null,
+            },
+          ]),
+      };
+    },
+  };
+
+  const result = await listSleepReviews(connectors, "8e165e4f-59bc-4b94-9508-4f596ee87584");
+
+  expect(calls).toBe(2);
+  expect(result.revisoes).toEqual([]);
+});
+
 test("consolidates only selected numeric rows for the authenticated owner", async () => {
   const requests = [];
   const connectors = {
