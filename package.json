@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "test": "python -m unittest discover -s backend -p 'test_*.py' && bun test backend/*.test.mjs",
+    "test:integration:sleep": "RUN_POSTGRES_INTEGRATION_TESTS=1 bun test backend/supabase_sleep_concurrency.integration.test.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

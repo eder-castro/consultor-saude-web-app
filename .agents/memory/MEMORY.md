@@ -3,3 +3,4 @@
 - [Vite hydration stability](vite-hydration-stability.md) — Ignore Bun cache churn; suppress hydration only on fields mutated by Replit browser tooling.
 - [Supabase connector RLS](supabase-connector-rls.md) — The connector reaches PostgREST as anon; backend-only tables need RLS gated by a server-held request credential.
 - [Persistent chat history](persistent-chat-history.md) — Keep owner-scoped chat across reloads without persisting original uploaded image bytes.
+- [PostgreSQL integration daemons](postgres-integration-daemons.md) — Redirect daemon logs and pin the cluster user in Bun-owned PostgreSQL tests.
