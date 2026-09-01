@@ -25,7 +25,14 @@ export default defineConfig({
         },
       },
       watch: {
-        ignored: ["**/.cache/**", "**/.pythonlibs/**", "**/node_modules/**"],
+        ignored: [
+          "**/.agents/**",
+          "**/.cache/**",
+          "**/.git/**",
+          "**/.local/**",
+          "**/.pythonlibs/**",
+          "**/node_modules/**",
+        ],
       },
     },
   },
