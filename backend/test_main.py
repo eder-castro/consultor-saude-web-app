@@ -221,6 +221,38 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    async def test_preserves_sleep_phases_returned_by_gemini(self) -> None:
+        response = gemini_response(
+            {
+                "grupos": [
+                    {
+                        "evento_tipo": "sono",
+                        "itens": [
+                            {
+                                "item": "Sono total",
+                                "quantidade_estimada": "7h 10min",
+                                "confirmado": True,
+                                "sono_profundo_min": "75 min",
+                                "sono_leve_min": "250 min",
+                                "sono_rem_min": "105 min",
+                                "acordado_min": "20 min",
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        with patch.object(main, "call_gemini_sync", return_value=response):
+            result = await main.analyze_with_gemini(
+                main.ProcessInputRequest(text="dados do meu sono")
+            )
+
+        item = result["grupos"][0]["itens"][0]
+        self.assertEqual(item["sono_profundo_min"], "75 min")
+        self.assertEqual(item["sono_leve_min"], "250 min")
+        self.assertEqual(item["sono_rem_min"], "105 min")
+        self.assertEqual(item["acordado_min"], "20 min")
+
     async def test_keeps_mixed_food_and_hydration_in_separate_groups(self) -> None:
         response = gemini_response(
             {

@@ -116,6 +116,10 @@ class GeminiItem(BaseModel):
     item: str = Field(min_length=1, max_length=200)
     quantidade_estimada: str = Field(default="não informado", max_length=100)
     confirmado: bool = True
+    sono_profundo_min: str | None = Field(default=None, max_length=100)
+    sono_leve_min: str | None = Field(default=None, max_length=100)
+    sono_rem_min: str | None = Field(default=None, max_length=100)
+    acordado_min: str | None = Field(default=None, max_length=100)
 
 
 class GeminiGroup(BaseModel):
@@ -485,6 +489,20 @@ async def daily_summary(
     )
 
 
+@app.get("/weekly-summary")
+async def weekly_summary(
+    user: Annotated[dict[str, Any], Depends(require_authenticated_user)],
+    data: date | None = None,
+):
+    return await run_supabase_helper(
+        "weekly-summary",
+        payload={
+            "owner_id": user["id"],
+            "end_date": data.isoformat() if data else None,
+        },
+    )
+
+
 @app.get("/chat-history")
 async def chat_history(user: Annotated[dict[str, Any], Depends(require_authenticated_user)]):
     return await run_supabase_helper("list-chat", payload={"owner_id": user["id"]})
@@ -572,6 +590,10 @@ def gemini_schema() -> dict[str, Any]:
                                     "item": {"type": "STRING"},
                                     "quantidade_estimada": {"type": "STRING"},
                                     "confirmado": {"type": "BOOLEAN"},
+                                    "sono_profundo_min": {"type": "STRING", "nullable": True},
+                                    "sono_leve_min": {"type": "STRING", "nullable": True},
+                                    "sono_rem_min": {"type": "STRING", "nullable": True},
+                                    "acordado_min": {"type": "STRING", "nullable": True},
                                 },
                                 "required": ["item", "quantidade_estimada", "confirmado"],
                             },
@@ -652,8 +674,10 @@ foto de refeição deve gerar grupos de sono e alimentação.
 Regras específicas:
 - prints de aplicativos de sono devem gerar um grupo sono; use a duração total
   legível como quantidade (por exemplo "7h 35min" ou "455 min");
-- para sono, retorne exatamente um item chamado "Sono total"; não crie itens
-  separados para sono profundo, leve, REM, acordado ou outras métricas;
+- para sono, retorne exatamente um item chamado "Sono total". Quando estiverem
+  visíveis, preserve as fases nos campos sono_profundo_min, sono_leve_min,
+  sono_rem_min e acordado_min, usando valores como "85 min". Não some o tempo
+  acordado à duração total e não crie itens separados para as fases;
 - fotos de refeições devem gerar alimentação com um item por alimento visível;
 - textos impressos na foto contam como fonte explícita e devem ser transcritos;
 - nunca classifique sono ou refeição como "outro" quando esses fatos estiverem visíveis.
@@ -953,6 +977,10 @@ async def analyze_with_gemini(
                         "item": item.item.strip(),
                         "quantidade_estimada": item.quantidade_estimada.strip() or "não informado",
                         "confirmado": item.confirmado,
+                        "sono_profundo_min": item.sono_profundo_min,
+                        "sono_leve_min": item.sono_leve_min,
+                        "sono_rem_min": item.sono_rem_min,
+                        "acordado_min": item.acordado_min,
                     }
                     for item in itens
                 ],

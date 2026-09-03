@@ -8,6 +8,7 @@ import {
   SaveResponseSchema,
   SleepCorrectionResponseSchema,
   SleepReviewsResponseSchema,
+  WeeklySummarySchema,
   type DailySummary,
   type Exam,
   type ExamExtractedData,
@@ -17,6 +18,7 @@ import {
   type ValidationGroup,
   type ValidationPayload,
   type SleepReviewGroup,
+  type WeeklySummary,
 } from "./api-schemas";
 import { getMockSummary, recordItems } from "./mock-store";
 
@@ -340,6 +342,14 @@ export async function getDailySummary(): Promise<DailySummary> {
   }
   const json = await fetchApi("/daily-summary", { method: "GET" });
   return DailySummarySchema.parse(json);
+}
+
+export async function getWeeklySummary(): Promise<WeeklySummary> {
+  if (isMockMode()) {
+    throw new Error("O detalhamento semanal não está disponível no modo de demonstração.");
+  }
+  const json = await fetchApi("/weekly-summary", { method: "GET" });
+  return WeeklySummarySchema.parse(json);
 }
 
 export async function generateDailyReport(): Promise<{ ok: true }> {

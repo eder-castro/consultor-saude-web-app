@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { WeeklyDetailDialog, type WeeklyMetric } from "@/components/dashboard/WeeklyDetailDialog";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -29,6 +31,7 @@ function ProtectedDashboardPage() {
 
 function DashboardPage() {
   const qc = useQueryClient();
+  const [weeklyMetric, setWeeklyMetric] = useState<WeeklyMetric | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["daily-summary"],
     queryFn: getDailySummary,
@@ -82,55 +85,72 @@ function DashboardPage() {
                   </div>
                 </Card>
               )}
-              <Card>
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Droplet className="size-4 text-primary" />
-                    <span className="text-sm font-medium">Hidratação</span>
+              <button
+                type="button"
+                className="rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setWeeklyMetric("agua")}
+              >
+                <Card interactive>
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Droplet className="size-4 text-primary" />
+                      <span className="text-sm font-medium">Hidratação</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {data.agua_ml} / {data.agua_meta_ml} ml
+                    </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {data.agua_ml} / {data.agua_meta_ml} ml
-                  </span>
-                </div>
-                <Progress value={Math.min(100, (data.agua_ml / data.agua_meta_ml) * 100)} />
-              </Card>
+                  <Progress value={Math.min(100, (data.agua_ml / data.agua_meta_ml) * 100)} />
+                  <p className="mt-2 text-xs text-muted-foreground">Toque para ver a semana</p>
+                </Card>
+              </button>
 
-              <Card>
-                <div className="mb-3 flex items-center gap-2">
-                  <Utensils className="size-4 text-primary" />
-                  <span className="text-sm font-medium">Refeições</span>
-                </div>
-                {data.refeicoes.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nada registrado ainda hoje.</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {data.refeicoes.map((r, i) => (
-                      <li key={i} className="border-l-2 border-primary/40 pl-3">
-                        <p className="text-xs text-muted-foreground">{r.hora}</p>
-                        <p className="text-sm">
-                          {r.itens.map((it) => `${it.item} (${it.quantidade})`).join(", ")}
-                        </p>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
+              <button
+                type="button"
+                className="rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => setWeeklyMetric("refeicoes")}
+              >
+                <Card interactive>
+                  <div className="mb-3 flex items-center gap-2">
+                    <Utensils className="size-4 text-primary" />
+                    <span className="text-sm font-medium">Refeições</span>
+                  </div>
+                  {data.refeicoes.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nada registrado ainda hoje.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {data.refeicoes.map((r, i) => (
+                        <li key={i} className="border-l-2 border-primary/40 pl-3">
+                          <p className="text-xs text-muted-foreground">{r.hora}</p>
+                          <p className="text-sm">
+                            {r.itens.map((it) => `${it.item} (${it.quantidade})`).join(", ")}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="mt-3 text-xs text-muted-foreground">Toque para ver a semana</p>
+                </Card>
+              </button>
 
               <div className="grid grid-cols-3 gap-3">
                 <MiniCard
                   icon={<Activity className="size-4" />}
                   label="Exercício"
                   value={data.exercicio ?? "—"}
+                  onClick={() => setWeeklyMetric("exercicio")}
                 />
                 <MiniCard
                   icon={<Moon className="size-4" />}
                   label="Sono"
                   value={data.sono_horas !== null ? formatSleepHours(data.sono_horas) : "—"}
+                  onClick={() => setWeeklyMetric("sono")}
                 />
                 <MiniCard
                   icon={<Scale className="size-4" />}
                   label="Peso"
                   value={data.peso_kg !== null ? `${data.peso_kg} kg` : "—"}
+                  onClick={() => setWeeklyMetric("peso")}
                 />
               </div>
 
@@ -159,6 +179,12 @@ function DashboardPage() {
           )}
         </div>
       </div>
+      <WeeklyDetailDialog
+        metric={weeklyMetric}
+        onOpenChange={(open) => {
+          if (!open) setWeeklyMetric(null);
+        }}
+      />
     </AppShell>
   );
 }
@@ -170,13 +196,42 @@ function formatSleepHours(hours: number) {
   return minutes ? `${wholeHours}h ${minutes}min` : `${wholeHours}h`;
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl border border-border bg-card p-4">{children}</div>;
+function Card({
+  children,
+  interactive = false,
+}: {
+  children: React.ReactNode;
+  interactive?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-border bg-card p-4 ${
+        interactive ? "transition-colors hover:border-primary/40 hover:bg-accent/30" : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
 }
 
-function MiniCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function MiniCard({
+  icon,
+  label,
+  value,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-3">
+    <button
+      type="button"
+      onClick={onClick}
+      className="rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      aria-label={`Ver detalhes semanais de ${label}`}
+    >
       <div className="flex items-center gap-1.5 text-muted-foreground">
         {icon}
         <span className="text-xs">{label}</span>
@@ -184,6 +239,7 @@ function MiniCard({ icon, label, value }: { icon: React.ReactNode; label: string
       <p className="mt-1.5 truncate text-sm font-medium" title={value}>
         {value}
       </p>
-    </div>
+      <span className="mt-1 block text-[10px] text-muted-foreground">Ver semana</span>
+    </button>
   );
 }

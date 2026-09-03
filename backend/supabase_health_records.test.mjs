@@ -5,6 +5,7 @@ import {
   reviewHealthExam,
   saveRecordsPayload,
   upsertHealthContext,
+  weeklySummary,
 } from "./supabase_health_records.mjs";
 
 test("routes mixed food and hydration groups to their own tables", async () => {
@@ -99,6 +100,104 @@ test("consolidates sleep stages into one total sleep record", async () => {
       acordado_min: "15 min",
     }),
   ]);
+});
+
+test("preserves sleep phase fields provided on the total sleep item", async () => {
+  const requests = [];
+  const connectors = {
+    proxy: async (_name, path, init) => {
+      requests.push({ path, init });
+      return { ok: true };
+    },
+  };
+
+  await saveRecordsPayload(connectors, {
+    owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
+    grupos: [
+      {
+        evento_tipo: "sono",
+        itens: [
+          {
+            item: "Sono total",
+            quantidade_estimada: "7h 10min",
+            sono_profundo_min: "75 min",
+            sono_leve_min: "250 min",
+            sono_rem_min: "105 min",
+            acordado_min: "20 min",
+            confirmado: true,
+          },
+        ],
+      },
+    ],
+  });
+
+  expect(JSON.parse(requests[0].init.body)[0]).toEqual(
+    expect.objectContaining({
+      duracao_minutos: "7h 10min",
+      sono_profundo_min: "75 min",
+      sono_leve_min: "250 min",
+      sono_rem_min: "105 min",
+      acordado_min: "20 min",
+    }),
+  );
+});
+
+test("builds seven-day dashboard details with sleep phases and trends", async () => {
+  const responses = [
+    [
+      {
+        data: "2026-08-29",
+        horario: "12:00",
+        quantidade: "1 porção",
+        evento_tipo: "alimentacao",
+      },
+    ],
+    [{ data: "2026-09-02", quantidade: "2 l" }],
+    [{ data: "2026-09-01", duracao_min: "35 min" }],
+    [
+      {
+        data: "2026-09-02",
+        duracao_minutos: "7h 10min",
+        sono_profundo_min: "75 min",
+        sono_leve_min: "250 min",
+        sono_rem_min: "105 min",
+        acordado_min: "20 min",
+      },
+    ],
+    [
+      { data: "2026-08-28", horario: "08:00", valor_kg: "95.5 kg" },
+      { data: "2026-09-02", horario: "08:00", valor_kg: "95 kg" },
+    ],
+  ];
+  let index = 0;
+  const connectors = {
+    proxy: async () => ({
+      ok: true,
+      json: async () => responses[index++],
+    }),
+  };
+
+  const result = await weeklySummary(
+    connectors,
+    "2026-09-03",
+    "8e165e4f-59bc-4b94-9508-4f596ee87584",
+  );
+
+  expect(result.periodo).toEqual({ inicio: "2026-08-28", fim: "2026-09-03" });
+  expect(result.dias).toHaveLength(7);
+  expect(result.dias[5]).toEqual(
+    expect.objectContaining({
+      data: "2026-09-02",
+      agua_ml: 2000,
+      sono_horas: 7.17,
+      sono_profundo_horas: 1.25,
+      sono_leve_horas: 4.17,
+      sono_rem_horas: 1.75,
+      acordado_horas: 0.33,
+    }),
+  );
+  expect(result.tendencias.sono).toContain("duração do sono");
+  expect(result.tendencias.peso).toContain("tendência de queda");
 });
 
 test("lists suspicious legacy sleep rows without mutating them", async () => {

@@ -15,6 +15,10 @@ export const ItemSchema = z.object({
   item: z.string(),
   quantidade_estimada: z.string(),
   confirmado: z.boolean(),
+  sono_profundo_min: z.string().nullable().optional(),
+  sono_leve_min: z.string().nullable().optional(),
+  sono_rem_min: z.string().nullable().optional(),
+  acordado_min: z.string().nullable().optional(),
 });
 export type Item = z.infer<typeof ItemSchema>;
 
@@ -79,6 +83,33 @@ export const DailySummarySchema = z.object({
   tendencia: z.string().nullable(),
 });
 export type DailySummary = z.infer<typeof DailySummarySchema>;
+
+export const WeeklyDaySchema = z.object({
+  data: z.string(),
+  agua_ml: z.number(),
+  refeicoes: z.number(),
+  exercicio_min: z.number(),
+  sono_horas: z.number().nullable(),
+  sono_profundo_horas: z.number().nullable(),
+  sono_leve_horas: z.number().nullable(),
+  sono_rem_horas: z.number().nullable(),
+  acordado_horas: z.number().nullable(),
+  peso_kg: z.number().nullable(),
+});
+
+export const WeeklySummarySchema = z.object({
+  ok: z.literal(true),
+  periodo: z.object({ inicio: z.string(), fim: z.string() }),
+  dias: z.array(WeeklyDaySchema).length(7),
+  tendencias: z.object({
+    agua: z.string(),
+    refeicoes: z.string(),
+    exercicio: z.string(),
+    sono: z.string(),
+    peso: z.string(),
+  }),
+});
+export type WeeklySummary = z.infer<typeof WeeklySummarySchema>;
 
 export const ExamMarkerSchema = z.object({
   nome: z.string(),

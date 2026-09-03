@@ -578,6 +578,186 @@ async function rowsForDate(connectors, table, data, ownerId, select, order) {
   return response.json();
 }
 
+function shiftDate(dateText, days) {
+  const date = new Date(`${dateText}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+async function rowsForPeriod(connectors, table, startDate, endDate, ownerId, select, order) {
+  const params = new URLSearchParams({
+    select,
+    data: `gte.${startDate}`,
+    owner_id: `eq.${ownerId}`,
+    order,
+  });
+  params.append("data", `lte.${endDate}`);
+  const response = await supabaseRequest(connectors, `/rest/v1/${table}?${params.toString()}`);
+  return response.json();
+}
+
+function rounded(value, decimals = 2) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
+}
+
+function metricTrend(days, key, label, unit, { positiveOnly = true, thresholdRatio = 0.1 } = {}) {
+  const observed = days
+    .map((day) => ({ data: day.data, value: day[key] }))
+    .filter(
+      ({ value }) =>
+        typeof value === "number" && Number.isFinite(value) && (!positiveOnly || value > 0),
+    );
+  if (observed.length === 0) {
+    return `Ainda não há registros de ${label} nesta semana.`;
+  }
+  const average = observed.reduce((sum, item) => sum + item.value, 0) / observed.length;
+  if (observed.length === 1) {
+    return `Há apenas um registro de ${label} na semana: ${rounded(average)} ${unit}.`;
+  }
+  const first = observed[0].value;
+  const last = observed.at(-1).value;
+  const change = last - first;
+  const threshold = Math.max(Math.abs(first) * thresholdRatio, 0.1);
+  const direction =
+    Math.abs(change) < threshold
+      ? "permaneceu estável"
+      : change > 0
+        ? "apresentou tendência de alta"
+        : "apresentou tendência de queda";
+  return `${label} ${direction} entre os registros da semana, com média de ${rounded(average)} ${unit}.`;
+}
+
+export async function weeklySummary(connectors, requestedEndDate, ownerId) {
+  const endDate = requestedEndDate || saoPauloNow().data;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+    throw new SupabaseRecordsError("invalid_date", "A data deve usar o formato AAAA-MM-DD.", 422);
+  }
+  const id = requireOwnerId(ownerId);
+  const startDate = shiftDate(endDate, -6);
+  const [alimentacao, hidratacao, exercicios, sono, peso] = await Promise.all([
+    rowsForPeriod(
+      connectors,
+      ALIMENTACAO_TABLE,
+      startDate,
+      endDate,
+      id,
+      "data,horario,item,quantidade,evento_tipo",
+      "data.asc,horario.asc,id.asc",
+    ),
+    rowsForPeriod(
+      connectors,
+      "hidratacao",
+      startDate,
+      endDate,
+      id,
+      "data,horario,quantidade",
+      "data.asc,horario.asc,id.asc",
+    ),
+    rowsForPeriod(
+      connectors,
+      "exercicios",
+      startDate,
+      endDate,
+      id,
+      "data,duracao_min",
+      "data.asc,id.asc",
+    ),
+    rowsForPeriod(
+      connectors,
+      "sono",
+      startDate,
+      endDate,
+      id,
+      "data,duracao_minutos,sono_profundo_min,sono_leve_min,sono_rem_min,acordado_min",
+      "data.asc,id.asc",
+    ),
+    rowsForPeriod(
+      connectors,
+      "peso",
+      startDate,
+      endDate,
+      id,
+      "data,horario,valor_kg",
+      "data.asc,horario.asc,id.asc",
+    ),
+  ]);
+
+  const days = Array.from({ length: 7 }, (_, index) => ({
+    data: shiftDate(startDate, index),
+    agua_ml: 0,
+    refeicoes: 0,
+    exercicio_min: 0,
+    sono_horas: null,
+    sono_profundo_horas: null,
+    sono_leve_horas: null,
+    sono_rem_horas: null,
+    acordado_horas: null,
+    peso_kg: null,
+  }));
+  const byDate = new Map(days.map((day) => [day.data, day]));
+  const meals = new Map();
+
+  for (const record of alimentacao) {
+    const day = byDate.get(record.data);
+    if (!day) continue;
+    if (record.evento_tipo === "hidratacao") {
+      day.agua_ml += parseWaterMl(record.quantidade);
+    } else if (record.evento_tipo === "alimentacao" || !record.evento_tipo) {
+      const key = `${record.data}|${record.horario ?? ""}`;
+      meals.set(key, record.data);
+    }
+  }
+  for (const data of meals.values()) {
+    const day = byDate.get(data);
+    if (day) day.refeicoes += 1;
+  }
+  for (const record of hidratacao) {
+    const day = byDate.get(record.data);
+    if (day) day.agua_ml += parseWaterMl(record.quantidade);
+  }
+  for (const record of exercicios) {
+    const day = byDate.get(record.data);
+    if (day) day.exercicio_min += Math.round(parseNumber(record.duracao_min) ?? 0);
+  }
+  for (const record of sono) {
+    const day = byDate.get(record.data);
+    if (!day) continue;
+    const total = parseSleepHours(record.duracao_minutos);
+    if (total !== null) day.sono_horas = rounded((day.sono_horas ?? 0) + total);
+    for (const [source, target] of [
+      ["sono_profundo_min", "sono_profundo_horas"],
+      ["sono_leve_min", "sono_leve_horas"],
+      ["sono_rem_min", "sono_rem_horas"],
+      ["acordado_min", "acordado_horas"],
+    ]) {
+      const value = parseSleepHours(record[source]);
+      if (value !== null) day[target] = rounded((day[target] ?? 0) + value);
+    }
+  }
+  for (const record of peso) {
+    const day = byDate.get(record.data);
+    const value = parseNumber(record.valor_kg);
+    if (day && value !== null) day.peso_kg = value;
+  }
+
+  return {
+    ok: true,
+    periodo: { inicio: startDate, fim: endDate },
+    dias: days,
+    tendencias: {
+      agua: metricTrend(days, "agua_ml", "A hidratação", "ml"),
+      refeicoes: metricTrend(days, "refeicoes", "O número de refeições registradas", "por dia"),
+      exercicio: metricTrend(days, "exercicio_min", "O tempo de exercício", "min"),
+      sono: metricTrend(days, "sono_horas", "A duração do sono", "h"),
+      peso: metricTrend(days, "peso_kg", "O peso", "kg", {
+        positiveOnly: false,
+        thresholdRatio: 0.003,
+      }),
+    },
+  };
+}
+
 async function dailySummary(connectors, requestedDate, ownerId) {
   const data = requestedDate || saoPauloNow().data;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
@@ -1003,6 +1183,10 @@ async function main() {
   if (action === "summary") {
     const payload = await readJsonInput();
     return dailySummary(connectors, process.argv[3], requireOwnerId(payload.owner_id));
+  }
+  if (action === "weekly-summary") {
+    const payload = await readJsonInput();
+    return weeklySummary(connectors, payload.end_date, payload.owner_id);
   }
   if (action === "context") {
     const payload = await readJsonInput();
