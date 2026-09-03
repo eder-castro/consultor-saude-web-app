@@ -6,3 +6,4 @@
 - [PostgreSQL integration daemons](postgres-integration-daemons.md) — Redirect daemon logs and pin the cluster user in Bun-owned PostgreSQL tests.
 - [Development watch boundaries](development-watch-boundaries.md) — Ignore Replit internal directories; reload storms can split SSR context modules.
 - [Supabase connector throttling](supabase-connector-throttling.md) — Pace context reads and retry safe requests; the connector enforces a per-Repl request ceiling.
+- [Mobile image decoding](mobile-image-decoding.md) — Prefer HTML image decoding before canvas conversion; Android Chrome may reject valid camera files via createImageBitmap.

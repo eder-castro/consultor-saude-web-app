@@ -376,6 +376,29 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
+async function loadImageFile(file: File): Promise<{
+  image: HTMLImageElement;
+  objectUrl: string;
+}> {
+  const objectUrl = URL.createObjectURL(file);
+  const image = new Image();
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("image_decode_failed"));
+      image.src = objectUrl;
+    });
+    if (!image.naturalWidth || !image.naturalHeight) {
+      throw new Error("image_decode_failed");
+    }
+    return { image, objectUrl };
+  } catch (error) {
+    URL.revokeObjectURL(objectUrl);
+    throw error;
+  }
+}
+
 export async function prepareHealthExamFile(file: File): Promise<{
   file_name: string;
   mime_type: string;
@@ -392,26 +415,35 @@ export async function prepareHealthExamFile(file: File): Promise<{
     throw new Error("Selecione uma imagem ou um arquivo PDF.");
   }
 
+  let objectUrl: string | undefined;
   try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const loaded = await loadImageFile(file);
+    objectUrl = loaded.objectUrl;
+    const { image } = loaded;
+    const scale = Math.min(1, 1600 / Math.max(image.naturalWidth, image.naturalHeight));
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("canvas_unavailable");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", 0.78),
     );
-    if (!blob) throw new Error("Não foi possível preparar a imagem.");
+    if (!blob || blob.size === 0) throw new Error("image_encode_failed");
     return {
       file_name: file.name.replace(/\.[^.]+$/, "") + ".jpg",
       mime_type: "image/jpeg",
       file_base64: await fileToBase64(new File([blob], "exam.jpg", { type: "image/jpeg" })),
     };
-  } catch (error) {
-    if (error instanceof Error && error.message) throw error;
-    throw new Error("Não foi possível ler esta imagem. Tente outro arquivo.");
+  } catch {
+    throw new Error(
+      "Não foi possível ler esta imagem. Tente selecioná-la novamente ou use uma foto em JPEG, PNG ou WebP.",
+    );
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }
 
