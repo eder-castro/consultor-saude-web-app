@@ -57,134 +57,136 @@ export function Composer({
   }
 
   return (
-    <div className="border-t border-border bg-card/60 p-3 backdrop-blur">
-      {pendingFiles.length > 0 && (
-        <div className="mb-2 rounded-xl border border-border bg-background p-2">
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              {pendingFiles.length}{" "}
-              {pendingFiles.length === 1 ? "imagem pronta" : "imagens prontas"} para análise
-              conjunta
-            </p>
-            <span className="text-xs text-muted-foreground">
-              {pendingFiles.length}/{MAX_IMAGES}
-            </span>
+    <div className="border-t border-border/60 bg-background/95 px-3 pb-4 pt-3 backdrop-blur sm:px-6 sm:pb-6">
+      <div className="mx-auto w-full max-w-4xl">
+        {pendingFiles.length > 0 && (
+          <div className="mb-3 rounded-2xl border border-border/70 bg-[#1e1f20] p-3">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                {pendingFiles.length}{" "}
+                {pendingFiles.length === 1 ? "imagem pronta" : "imagens prontas"} para análise
+                conjunta
+              </p>
+              <span className="text-xs text-muted-foreground">
+                {pendingFiles.length}/{MAX_IMAGES}
+              </span>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {pendingFiles.map((pending, index) => (
+                <div key={pending.url} className="relative shrink-0">
+                  <img
+                    src={pending.url}
+                    alt={`prévia ${index + 1}`}
+                    className="size-20 rounded-xl object-cover"
+                  />
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    className="absolute -right-1.5 -top-1.5 size-6 rounded-full"
+                    aria-label={`Remover imagem ${index + 1}`}
+                    onClick={() => {
+                      URL.revokeObjectURL(pending.url);
+                      setPendingFiles((current) =>
+                        current.filter((item) => item.url !== pending.url),
+                      );
+                    }}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {pendingFiles.map((pending, index) => (
-              <div key={pending.url} className="relative shrink-0">
-                <img
-                  src={pending.url}
-                  alt={`prévia ${index + 1}`}
-                  className="size-16 rounded-lg object-cover"
-                />
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="secondary"
-                  className="absolute -right-1.5 -top-1.5 size-6 rounded-full"
-                  aria-label={`Remover imagem ${index + 1}`}
-                  onClick={() => {
-                    URL.revokeObjectURL(pending.url);
-                    setPendingFiles((current) =>
-                      current.filter((item) => item.url !== pending.url),
-                    );
-                  }}
-                >
-                  <X className="size-3" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+        )}
 
-      <div className="flex items-end gap-3">
-        <input
-          ref={cameraRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          suppressHydrationWarning
-          onChange={(e) => {
-            pickFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <input
-          ref={galleryRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          suppressHydrationWarning
-          onChange={(e) => {
-            pickFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              size="icon"
-              variant="outline"
-              className="size-12 shrink-0 rounded-full"
-              disabled={disabled}
-              aria-label="Anexar foto"
-            >
-              <Plus className="size-5" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-48 p-1">
-            <Button
-              variant="ghost"
-              className="w-full justify-start"
-              onClick={() => cameraRef.current?.click()}
-            >
-              <Camera className="size-4" />
-              Câmera
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start"
-              onClick={() => galleryRef.current?.click()}
-            >
-              <ImageIcon className="size-4" />
-              Galeria
-            </Button>
-          </PopoverContent>
-        </Popover>
+        <div className="flex items-end gap-2 rounded-3xl border border-border/70 bg-[#1e1f20] p-2 shadow-lg shadow-black/10">
+          <input
+            ref={cameraRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            suppressHydrationWarning
+            onChange={(e) => {
+              pickFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <input
+            ref={galleryRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            suppressHydrationWarning
+            onChange={(e) => {
+              pickFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                size="icon"
+                variant="outline"
+                className="size-11 shrink-0 rounded-full border-border/70 bg-transparent"
+                disabled={disabled}
+                aria-label="Anexar foto"
+              >
+                <Plus className="size-5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-48 p-1">
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => cameraRef.current?.click()}
+              >
+                <Camera className="size-4" />
+                Câmera
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                onClick={() => galleryRef.current?.click()}
+              >
+                <ImageIcon className="size-4" />
+                Galeria
+              </Button>
+            </PopoverContent>
+          </Popover>
 
-        <Textarea
-          ref={textareaRef}
-          value={text}
-          suppressHydrationWarning
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              send();
+          <Textarea
+            ref={textareaRef}
+            value={text}
+            suppressHydrationWarning
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                send();
+              }
+            }}
+            placeholder={
+              pendingFiles.length
+                ? "Legenda para as imagens (opcional)..."
+                : "Ex: Tomei 500ml de água, dormi 7h, comi..."
             }
-          }}
-          placeholder={
-            pendingFiles.length
-              ? "Legenda para as imagens (opcional)..."
-              : "Ex: Tomei 500ml de água, dormi 7h, comi..."
-          }
-          rows={2}
-          className="h-14 max-h-14 min-h-14 flex-1 resize-none overflow-y-auto bg-background text-base leading-6"
-        />
+            rows={2}
+            className="h-11 max-h-28 min-h-11 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-3 py-2.5 text-base leading-6 shadow-none focus-visible:ring-0"
+          />
 
-        <Button
-          size="icon"
-          className="size-12 shrink-0 rounded-full"
-          onClick={send}
-          disabled={disabled || (!text.trim() && pendingFiles.length === 0)}
-          aria-label="Enviar"
-        >
-          <Send className="size-5" />
-        </Button>
+          <Button
+            size="icon"
+            className="size-11 shrink-0 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+            onClick={send}
+            disabled={disabled || (!text.trim() && pendingFiles.length === 0)}
+            aria-label="Enviar"
+          >
+            <Send className="size-5" />
+          </Button>
+        </div>
       </div>
     </div>
   );

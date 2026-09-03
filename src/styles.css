@@ -137,7 +137,8 @@
     border-color: var(--color-border);
   }
 
-  html, body {
+  html,
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
@@ -146,8 +147,16 @@
 
   body {
     background-image:
-      radial-gradient(ellipse 80% 50% at 20% 0%, color-mix(in oklab, var(--primary) 8%, transparent), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 90% 100%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 60%);
+      radial-gradient(
+        ellipse 80% 50% at 20% 0%,
+        color-mix(in oklab, var(--primary) 8%, transparent),
+        transparent 60%
+      ),
+      radial-gradient(
+        ellipse 60% 40% at 90% 100%,
+        color-mix(in oklab, var(--accent) 8%, transparent),
+        transparent 60%
+      );
     background-attachment: fixed;
   }
 }
@@ -165,4 +174,35 @@
   background-image: var(--gradient-surface);
   border: 1px solid var(--color-border);
   box-shadow: var(--shadow-elegant);
+}
+
+/* Gemini-inspired neutral dark surfaces and typography. */
+:root,
+.dark {
+  --font-sans: "Google Sans", "Google Sans Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --background: #131314;
+  --foreground: #e3e3e3;
+  --card: #1e1f20;
+  --card-foreground: #e3e3e3;
+  --popover: #1e1f20;
+  --popover-foreground: #e3e3e3;
+  --primary: #a8c7fa;
+  --primary-foreground: #172033;
+  --secondary: #2b2c2f;
+  --secondary-foreground: #e3e3e3;
+  --muted: #242528;
+  --muted-foreground: #aaaeb8;
+  --accent: #c58af9;
+  --accent-foreground: #241b30;
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 8%);
+  --ring: rgb(168 199 250 / 60%);
+  --sidebar: #17181a;
+  --sidebar-foreground: #e3e3e3;
+  --sidebar-primary: #a8c7fa;
+  --sidebar-primary-foreground: #172033;
+  --sidebar-accent: #2b2c2f;
+  --sidebar-accent-foreground: #e3e3e3;
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-ring: rgb(168 199 250 / 60%);
 }

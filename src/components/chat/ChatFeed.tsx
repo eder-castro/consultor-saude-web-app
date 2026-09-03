@@ -23,8 +23,8 @@ export function ChatFeed({
   }, [messages]);
 
   return (
-    <div className="h-full w-full overflow-y-auto px-3 py-5 sm:px-6 sm:py-6">
-      <div className="mx-auto flex min-h-full max-w-3xl flex-col justify-end gap-4">
+    <div className="h-full w-full overflow-y-auto px-4 py-6 sm:px-8 sm:py-10">
+      <div className="mx-auto flex min-h-full max-w-4xl flex-col justify-end gap-7">
         {/* Saudação limpa e fixa no topo do histórico */}
         <div className="pb-2">
           <GreetingHeader />
@@ -63,14 +63,14 @@ function GreetingHeader() {
   }, []);
 
   return (
-    <div className="space-y-2">
-      <h2 className="text-xl font-semibold tracking-tight">{greeting}</h2>
-      <div className="text-base leading-relaxed text-muted-foreground">
-        <p>Faça um registro:</p>
-        <ul className="mt-1 list-disc space-y-1 pl-5">
+    <div className="max-w-2xl space-y-4 pb-4 pt-6 sm:pt-12">
+      <h2 className="text-3xl font-normal tracking-tight sm:text-4xl">{greeting}</h2>
+      <div className="text-base leading-relaxed text-muted-foreground sm:text-lg">
+        <p>Como posso ajudar no seu registro de hoje?</p>
+        <ul className="mt-4 space-y-2 text-sm sm:text-base">
           <li>Enviando uma foto de uma refeição</li>
           <li>Enviando um print de aplicativo (Sono / Atividade Física)</li>
-          <li>Conversando naturally pelo chat</li>
+          <li>Conversando naturalmente pelo chat</li>
         </ul>
       </div>
     </div>
@@ -87,34 +87,43 @@ function Bubble({
   onRetry: () => void;
 }) {
   if (m.role === "user") {
-    return (
-      <div className="flex justify-end">
-        <div className="max-w-[92%] rounded-3xl rounded-tr-sm bg-primary px-4 py-3 text-base leading-relaxed text-primary-foreground sm:max-w-[85%]">
-          {m.kind === "image" ? (
-            <div className="space-y-2">
-              {m.imageUrls?.length || m.imageUrl ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {(m.imageUrls ?? (m.imageUrl ? [m.imageUrl] : [])).map((url, index) => (
+    if (m.kind === "image") {
+      const imageUrls = m.imageUrls ?? (m.imageUrl ? [m.imageUrl] : []);
+      return (
+        <div className="flex justify-end">
+          <div className="max-w-[98%] text-base leading-relaxed sm:max-w-[88%]">
+            <div className={`grid gap-3 ${imageUrls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {imageUrls.length ? (
+                imageUrls.map((url, index) => (
+                  <div
+                    key={`${url}-${index}`}
+                    className="overflow-hidden rounded-2xl border border-white/10 bg-transparent p-0.5"
+                  >
                     <img
-                      key={`${url}-${index}`}
                       src={url}
                       alt={`imagem enviada ${index + 1}`}
-                      className="max-h-64 w-full rounded-lg object-cover"
+                      className="max-h-[32rem] min-h-40 w-full rounded-xl object-contain"
                     />
-                  ))}
-                </div>
+                  </div>
+                ))
               ) : (
-                <p className="text-sm opacity-80">
+                <p className="text-sm text-muted-foreground">
                   {(m.imageCount ?? 1) === 1
                     ? "Imagem analisada"
                     : `${m.imageCount} imagens analisadas em conjunto`}
                 </p>
               )}
-              {m.caption && <p>{m.caption}</p>}
             </div>
-          ) : (
-            <p className="whitespace-pre-wrap">{m.text}</p>
-          )}
+            {m.caption && <p className="mt-3 px-1 text-muted-foreground">{m.caption}</p>}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[92%] rounded-2xl rounded-tr-sm bg-[#2b2c2f] px-5 py-3 text-base leading-relaxed text-foreground sm:max-w-[85%]">
+          <p className="whitespace-pre-wrap">{m.text}</p>
         </div>
       </div>
     );
@@ -124,7 +133,7 @@ function Bubble({
     return (
       <div className="flex justify-start">
         <div
-          className="w-full max-w-[90%] space-y-2 rounded-2xl rounded-tl-sm border border-border bg-card p-3"
+          className="w-full max-w-[90%] space-y-3 rounded-2xl rounded-tl-sm border border-border/60 bg-card/50 p-4"
           aria-label="Analisando registro"
         >
           <p className="text-sm text-muted-foreground">Analisando seu registro...</p>
@@ -139,7 +148,7 @@ function Bubble({
   if (m.kind === "text") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[92%] rounded-3xl rounded-tl-sm border border-border bg-card px-4 py-3 text-base leading-relaxed sm:max-w-[85%]">
+        <div className="max-w-[92%] px-1 py-2 text-base leading-relaxed sm:max-w-[85%]">
           {m.text}
         </div>
       </div>
