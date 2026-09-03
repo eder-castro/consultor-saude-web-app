@@ -104,9 +104,6 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
           <p className="text-sm uppercase tracking-wider text-muted-foreground">
             Registros detectados
           </p>
-          {payload.resumo && (
-            <p className="mt-1 text-base leading-relaxed text-foreground/80">{payload.resumo}</p>
-          )}
         </div>
         {status === "saved" && (
           <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
@@ -183,6 +180,15 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
           </section>
         ))}
       </div>
+
+      {payload.resumo && (
+        <section className="mt-6 border-t border-border/60 pt-5">
+          <p className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+            Análise
+          </p>
+          <p className="mt-2 text-base leading-relaxed text-foreground/80">{payload.resumo}</p>
+        </section>
+      )}
 
       {saveError && (
         <p

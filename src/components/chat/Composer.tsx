@@ -163,12 +163,6 @@ export function Composer({
             value={text}
             suppressHydrationWarning
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                send();
-              }
-            }}
             placeholder={
               pendingFiles.length
                 ? "Legenda para as imagens (opcional)..."
