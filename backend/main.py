@@ -57,6 +57,11 @@ app.add_middleware(
 )
 
 
+class ProcessImage(BaseModel):
+    image_base64: str = Field(max_length=(MAX_IMAGE_BYTES * 4 // 3) + 2048)
+    mime_type: str = Field(default="image/jpeg", max_length=100)
+
+
 class ProcessInputRequest(BaseModel):
     text: str | None = Field(default=None, max_length=MAX_TEXT_LENGTH)
     image_base64: str | None = Field(
@@ -64,6 +69,7 @@ class ProcessInputRequest(BaseModel):
         max_length=(MAX_IMAGE_BYTES * 4 // 3) + 2048,
     )
     mime_type: str | None = Field(default=None, max_length=100)
+    images: list[ProcessImage] = Field(default_factory=list, max_length=6)
 
 
 class HealthExamUploadRequest(BaseModel):
@@ -627,14 +633,16 @@ def context_for_prompt(context: dict[str, Any] | None) -> str:
 
 def gemini_prompt(
     text: str | None,
-    has_image: bool,
+    image_count: int,
     context: dict[str, Any] | None = None,
 ) -> str:
     source_description = []
     if text:
         source_description.append(f'Texto enviado pelo usuário: "{text}"')
-    if has_image:
-        source_description.append("Uma imagem foi anexada ao registro.")
+    if image_count:
+        source_description.append(
+            f"{image_count} imagem(ns) foram anexada(s) ao mesmo registro."
+        )
 
     persisted_context = context_for_prompt(context)
     context_section = (
@@ -667,9 +675,10 @@ Uma mensagem pode conter mais de um tipo. Nesse caso, não use um único tipo pa
 toda a mensagem: crie um grupo separado por tipo em "grupos". Cada item deve
 aparecer em exatamente um grupo. Por exemplo, "comi arroz e bebi água" deve
 gerar um grupo alimentacao com arroz e um grupo hidratacao com água.
-Analise separadamente o texto digitado e todo texto legível dentro da imagem,
-depois una os fatos sem omitir nenhum deles. Uma legenda sobre sono junto de uma
-foto de refeição deve gerar grupos de sono e alimentação.
+Analise todas as imagens em conjunto, comparando-as quando necessário, e una os
+fatos explícitos sem duplicar o que aparece em mais de uma imagem. Analise também
+o texto digitado e todo texto legível nas imagens. Uma legenda sobre sono junto
+de uma foto de refeição deve gerar grupos de sono e alimentação.
 
 Regras específicas:
 - prints de aplicativos de sono devem gerar um grupo sono; use a duração total
@@ -890,9 +899,16 @@ async def analyze_with_gemini(
     context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     text = (body.text or "").strip()
-    image_base64 = body.image_base64
+    image_inputs = list(body.images)
+    if not image_inputs and body.image_base64:
+        image_inputs = [
+            ProcessImage(
+                image_base64=body.image_base64,
+                mime_type=body.mime_type or "image/jpeg",
+            )
+        ]
 
-    if not text and not image_base64:
+    if not text and not image_inputs:
         raise HTTPException(
             status_code=422,
             detail="Envie um texto, uma imagem ou os dois.",
@@ -903,26 +919,27 @@ async def analyze_with_gemini(
             detail="A integração do Gemini ainda não está configurada.",
         )
 
-    image_part = None
-    if image_base64:
-        mime_type = (body.mime_type or "image/jpeg").lower().strip()
+    image_parts: list[dict[str, Any]] = []
+    for image in image_inputs:
+        mime_type = image.mime_type.lower().strip()
         if mime_type not in ALLOWED_IMAGE_TYPES:
             raise HTTPException(
                 status_code=415,
                 detail="Tipo de imagem não suportado. Use JPEG, PNG, WebP ou GIF.",
             )
-        image_part = {
-            "inlineData": {
-                "mimeType": mime_type,
-                "data": clean_base64_image(image_base64),
+        image_parts.append(
+            {
+                "inlineData": {
+                    "mimeType": mime_type,
+                    "data": clean_base64_image(image.image_base64),
+                }
             }
-        }
+        )
 
     parts: list[dict[str, Any]] = [
-        {"text": gemini_prompt(text or None, image_part is not None, context)}
+        {"text": gemini_prompt(text or None, len(image_parts), context)}
     ]
-    if image_part:
-        parts.append(image_part)
+    parts.extend(image_parts)
 
     request_payload = {
         "contents": [{"role": "user", "parts": parts}],
@@ -936,7 +953,7 @@ async def analyze_with_gemini(
     parsed = parse_gemini_payload(response)
 
     if (
-        image_part is not None
+        image_parts
         and (
             parsed.precisa_revisao
             or all(group.evento_tipo == "outro" for group in parsed.grupos)

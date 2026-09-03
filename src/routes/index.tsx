@@ -6,7 +6,7 @@ import { Composer, type ComposerSubmit } from "@/components/chat/Composer";
 import {
   getApiErrorMessage,
   isRetryableApiError,
-  prepareHealthExamFile,
+  prepareHealthImages,
   processInput,
 } from "@/lib/api";
 import { toast } from "sonner";
@@ -50,7 +50,8 @@ function ChatPage() {
             id: uid(),
             role: "user",
             kind: "image",
-            imageUrl: s.previewUrl,
+            imageUrls: s.previewUrls,
+            imageCount: s.previewUrls.length,
             caption: s.caption,
           };
     const loadingId = uid();
@@ -92,9 +93,8 @@ function ChatPage() {
       input.kind === "text"
         ? { text: input.text }
         : {
-            imageBase64: input.imageBase64,
+            images: input.images,
             text: input.caption || undefined,
-            mimeType: input.mimeType,
           },
     );
     setMessages((current) =>
@@ -162,11 +162,13 @@ function ChatPage() {
 
 async function makeRetryInput(s: ComposerSubmit): Promise<RetryInput> {
   if (s.kind === "text") return { kind: "text", text: s.text };
-  const prepared = await prepareHealthExamFile(s.file);
+  const prepared = await prepareHealthImages(s.files);
   return {
     kind: "image",
-    imageBase64: prepared.file_base64,
-    mimeType: prepared.mime_type,
+    images: prepared.map((image) => ({
+      imageBase64: image.file_base64,
+      mimeType: image.mime_type,
+    })),
     caption: s.caption,
   };
 }

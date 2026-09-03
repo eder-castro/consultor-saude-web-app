@@ -156,9 +156,12 @@ function makeGroup(evento_tipo: EventoTipo, itens: Item[]): ValidationGroup {
   return { evento_tipo, itens };
 }
 
-function mockProcess(input: { text?: string; imageBase64?: string }): ValidationPayload {
+function mockProcess(input: {
+  text?: string;
+  images?: { imageBase64: string; mimeType: string }[];
+}): ValidationPayload {
   const text = input.text ?? "";
-  if (input.imageBase64) {
+  if (input.images?.length) {
     return {
       grupos: [
         makeGroup("alimentacao", [
@@ -279,8 +282,7 @@ function mockProcess(input: { text?: string; imageBase64?: string }): Validation
 // ===== Public API =====
 export async function processInput(input: {
   text?: string;
-  imageBase64?: string;
-  mimeType?: string;
+  images?: { imageBase64: string; mimeType: string }[];
 }): Promise<ValidationPayload> {
   if (isMockMode()) {
     await sleep(1100);
@@ -290,8 +292,10 @@ export async function processInput(input: {
     method: "POST",
     body: JSON.stringify({
       text: input.text,
-      image_base64: input.imageBase64,
-      mime_type: input.mimeType,
+      images: input.images?.map((image) => ({
+        image_base64: image.imageBase64,
+        mime_type: image.mimeType,
+      })),
     }),
   });
   return ValidationPayloadSchema.parse(json);
@@ -455,6 +459,12 @@ export async function prepareHealthExamFile(file: File): Promise<{
   } finally {
     if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
+}
+
+export async function prepareHealthImages(
+  files: File[],
+): Promise<{ file_base64: string; mime_type: string }[]> {
+  return Promise.all(files.map((file) => prepareHealthExamFile(file)));
 }
 
 export async function getHealthContext(): Promise<HealthContext> {

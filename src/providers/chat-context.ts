@@ -4,7 +4,15 @@ import type { ValidationPayload } from "@/lib/api-schemas";
 
 export type ChatMessage =
   | { id: string; role: "user"; kind: "text"; text: string }
-  | { id: string; role: "user"; kind: "image"; imageUrl?: string; caption: string }
+  | {
+      id: string;
+      role: "user";
+      kind: "image";
+      imageUrl?: string;
+      imageUrls?: string[];
+      imageCount?: number;
+      caption: string;
+    }
   | { id: string; role: "assistant"; kind: "loading" }
   | { id: string; role: "assistant"; kind: "text"; text: string }
   | {
@@ -25,7 +33,11 @@ export type ChatMessage =
 
 export type RetryInput =
   | { kind: "text"; text: string }
-  | { kind: "image"; imageBase64: string; mimeType: string; caption: string };
+  | {
+      kind: "image";
+      images: { imageBase64: string; mimeType: string }[];
+      caption: string;
+    };
 
 export type ChatContextValue = {
   messages: ChatMessage[];

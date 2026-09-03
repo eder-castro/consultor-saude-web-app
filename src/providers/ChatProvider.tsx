@@ -70,7 +70,10 @@ function serializeMessage(
       client_id: message.id,
       role: "user",
       kind: "image",
-      payload: { caption: message.caption },
+      payload: {
+        caption: message.caption,
+        image_count: message.imageUrls?.length ?? message.imageCount ?? (message.imageUrl ? 1 : 1),
+      },
       sequence,
     };
   }
@@ -112,6 +115,10 @@ function deserializeMessage(row: ChatHistoryRow): ChatMessage | null {
       role: "user",
       kind: "image",
       caption: typeof row.payload.caption === "string" ? row.payload.caption : "",
+      imageCount:
+        typeof row.payload.image_count === "number" && row.payload.image_count > 0
+          ? Math.min(6, Math.round(row.payload.image_count))
+          : 1,
     };
   }
   if (row.kind === "validation" && row.role === "assistant") {

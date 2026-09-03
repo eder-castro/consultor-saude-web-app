@@ -221,6 +221,64 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
             },
         )
 
+    async def test_sends_multiple_images_together_in_one_gemini_request(self) -> None:
+        response = gemini_response(
+            {
+                "grupos": [
+                    {
+                        "evento_tipo": "alimentacao",
+                        "itens": [
+                            {
+                                "item": "refeição combinada",
+                                "quantidade_estimada": "não informado",
+                                "confirmado": True,
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+        with patch.object(main, "call_gemini_sync", return_value=response) as mocked:
+            await main.analyze_with_gemini(
+                main.ProcessInputRequest(
+                    text="considere todas juntas",
+                    images=[
+                        main.ProcessImage(image_base64="aW1hZ2VtLTE=", mime_type="image/jpeg"),
+                        main.ProcessImage(image_base64="aW1hZ2VtLTI=", mime_type="image/png"),
+                    ],
+                )
+            )
+
+        parts = mocked.call_args.args[0]["contents"][0]["parts"]
+        self.assertEqual(len(parts), 3)
+        self.assertIn("2 imagem(ns)", parts[0]["text"])
+        self.assertEqual(
+            parts[1:],
+            [
+                {
+                    "inlineData": {
+                        "mimeType": "image/jpeg",
+                        "data": "aW1hZ2VtLTE=",
+                    }
+                },
+                {
+                    "inlineData": {
+                        "mimeType": "image/png",
+                        "data": "aW1hZ2VtLTI=",
+                    }
+                },
+            ],
+        )
+
+    def test_limits_joint_analysis_to_six_images(self) -> None:
+        with self.assertRaises(ValidationError):
+            main.ProcessInputRequest(
+                images=[
+                    main.ProcessImage(image_base64="aGVsbG8=", mime_type="image/jpeg")
+                    for _ in range(7)
+                ]
+            )
+
     async def test_preserves_sleep_phases_returned_by_gemini(self) -> None:
         response = gemini_response(
             {

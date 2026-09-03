@@ -6,7 +6,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 
 export type ComposerSubmit =
   | { kind: "text"; text: string }
-  | { kind: "image"; file: File; previewUrl: string; caption: string };
+  | { kind: "image"; files: File[]; previewUrls: string[]; caption: string };
+
+const MAX_IMAGES = 6;
 
 export function Composer({
   disabled,
@@ -16,28 +18,35 @@ export function Composer({
   onSubmit: (s: ComposerSubmit) => void;
 }) {
   const [text, setText] = useState("");
-  const [pendingFile, setPendingFile] = useState<{ file: File; url: string } | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; url: string }[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  function pickFile(f: File | undefined | null) {
+  function pickFiles(files: FileList | null) {
     setMenuOpen(false);
-    if (!f) return;
-    setPendingFile({ file: f, url: URL.createObjectURL(f) });
+    if (!files?.length) return;
+    setPendingFiles((current) => {
+      const available = Math.max(0, MAX_IMAGES - current.length);
+      const selected = Array.from(files)
+        .filter((file) => file.type.startsWith("image/"))
+        .slice(0, available)
+        .map((file) => ({ file, url: URL.createObjectURL(file) }));
+      return [...current, ...selected];
+    });
   }
 
   function send() {
     if (disabled) return;
-    if (pendingFile) {
+    if (pendingFiles.length) {
       onSubmit({
         kind: "image",
-        file: pendingFile.file,
-        previewUrl: pendingFile.url,
+        files: pendingFiles.map(({ file }) => file),
+        previewUrls: pendingFiles.map(({ url }) => url),
         caption: text.trim(),
       });
-      setPendingFile(null);
+      setPendingFiles([]);
       setText("");
       return;
     }
@@ -49,22 +58,44 @@ export function Composer({
 
   return (
     <div className="border-t border-border bg-card/60 p-3 backdrop-blur">
-      {pendingFile && (
-        <div className="mb-2 flex items-center gap-3 rounded-xl border border-border bg-background p-2">
-          <img src={pendingFile.url} alt="prévia" className="size-14 rounded-lg object-cover" />
-          <p className="flex-1 text-sm leading-relaxed text-muted-foreground">
-            Foto pronta para envio. Adicione uma legenda opcional.
-          </p>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => {
-              URL.revokeObjectURL(pendingFile.url);
-              setPendingFile(null);
-            }}
-          >
-            <X className="size-4" />
-          </Button>
+      {pendingFiles.length > 0 && (
+        <div className="mb-2 rounded-xl border border-border bg-background p-2">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-sm text-muted-foreground">
+              {pendingFiles.length}{" "}
+              {pendingFiles.length === 1 ? "imagem pronta" : "imagens prontas"} para análise
+              conjunta
+            </p>
+            <span className="text-xs text-muted-foreground">
+              {pendingFiles.length}/{MAX_IMAGES}
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {pendingFiles.map((pending, index) => (
+              <div key={pending.url} className="relative shrink-0">
+                <img
+                  src={pending.url}
+                  alt={`prévia ${index + 1}`}
+                  className="size-16 rounded-lg object-cover"
+                />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  className="absolute -right-1.5 -top-1.5 size-6 rounded-full"
+                  aria-label={`Remover imagem ${index + 1}`}
+                  onClick={() => {
+                    URL.revokeObjectURL(pending.url);
+                    setPendingFiles((current) =>
+                      current.filter((item) => item.url !== pending.url),
+                    );
+                  }}
+                >
+                  <X className="size-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -77,7 +108,7 @@ export function Composer({
           className="hidden"
           suppressHydrationWarning
           onChange={(e) => {
-            pickFile(e.target.files?.[0]);
+            pickFiles(e.target.files);
             e.target.value = "";
           }}
         />
@@ -85,10 +116,11 @@ export function Composer({
           ref={galleryRef}
           type="file"
           accept="image/*"
+          multiple
           className="hidden"
           suppressHydrationWarning
           onChange={(e) => {
-            pickFile(e.target.files?.[0]);
+            pickFiles(e.target.files);
             e.target.value = "";
           }}
         />
@@ -136,7 +168,9 @@ export function Composer({
             }
           }}
           placeholder={
-            pendingFile ? "Legenda (opcional)..." : "Ex: Tomei 500ml de água, dormi 7h, comi..."
+            pendingFiles.length
+              ? "Legenda para as imagens (opcional)..."
+              : "Ex: Tomei 500ml de água, dormi 7h, comi..."
           }
           rows={2}
           className="h-14 max-h-14 min-h-14 flex-1 resize-none overflow-y-auto bg-background text-base leading-6"
@@ -146,7 +180,7 @@ export function Composer({
           size="icon"
           className="size-12 shrink-0 rounded-full"
           onClick={send}
-          disabled={disabled || (!text.trim() && !pendingFile)}
+          disabled={disabled || (!text.trim() && pendingFiles.length === 0)}
           aria-label="Enviar"
         >
           <Send className="size-5" />
