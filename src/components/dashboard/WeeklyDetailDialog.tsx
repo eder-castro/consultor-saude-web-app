@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ComposedChart, Line, XAxis, YAxis } from "recharts";
 import { Activity, Droplet, Moon, Scale, TrendingUp, Utensils } from "lucide-react";
 import { getWeeklySummary } from "@/lib/api";
 import { type WeeklySummary } from "@/lib/api-schemas";
@@ -92,46 +92,61 @@ function MetricChart({ metric, data }: { metric: WeeklyMetric; data: WeeklySumma
 
   if (metric === "sono") {
     return (
-      <ChartContainer config={chartConfig} className="h-64 w-full">
-        <ComposedChart data={days} margin={{ left: -14, right: 8, top: 8 }}>
-          <CartesianGrid vertical={false} />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} />
-          <YAxis tickLine={false} axisLine={false} width={36} unit="h" />
-          <ChartTooltip content={<ChartTooltipContent />} />
-          <Legend />
-          <Bar
-            dataKey="sono_profundo_horas"
-            name="Profundo"
-            stackId="fases"
-            fill="var(--color-profundo)"
-            radius={[0, 0, 3, 3]}
-          />
-          <Bar dataKey="sono_leve_horas" name="Leve" stackId="fases" fill="var(--color-leve)" />
-          <Bar dataKey="sono_rem_horas" name="REM" stackId="fases" fill="var(--color-rem)" />
-          <Bar
-            dataKey="acordado_horas"
-            name="Acordado"
-            stackId="fases"
-            fill="var(--color-acordado)"
-            radius={[3, 3, 0, 0]}
-          />
-          <Line
-            dataKey="sono_horas"
-            name="Sono total"
-            type="monotone"
-            stroke="var(--color-total)"
-            strokeWidth={2.5}
-            connectNulls
-            dot={{ r: 3 }}
-          />
-        </ComposedChart>
-      </ChartContainer>
+      <div className="min-w-0 max-w-full">
+        <div className="mb-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+          {[
+            ["Profundo", "var(--color-profundo)"],
+            ["Leve", "var(--color-leve)"],
+            ["REM", "var(--color-rem)"],
+            ["Acordado", "var(--color-acordado)"],
+            ["Sono total", "var(--color-total)"],
+          ].map(([label, color]) => (
+            <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
+              <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
+              {label}
+            </span>
+          ))}
+        </div>
+        <ChartContainer config={chartConfig} className="h-60 min-w-0 max-w-full overflow-hidden">
+          <ComposedChart data={days} margin={{ left: -18, right: 2, top: 8 }}>
+            <CartesianGrid vertical={false} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} />
+            <YAxis tickLine={false} axisLine={false} width={36} unit="h" />
+            <ChartTooltip content={<ChartTooltipContent />} />
+            <Bar
+              dataKey="sono_profundo_horas"
+              name="Profundo"
+              stackId="fases"
+              fill="var(--color-profundo)"
+              radius={[0, 0, 3, 3]}
+            />
+            <Bar dataKey="sono_leve_horas" name="Leve" stackId="fases" fill="var(--color-leve)" />
+            <Bar dataKey="sono_rem_horas" name="REM" stackId="fases" fill="var(--color-rem)" />
+            <Bar
+              dataKey="acordado_horas"
+              name="Acordado"
+              stackId="fases"
+              fill="var(--color-acordado)"
+              radius={[3, 3, 0, 0]}
+            />
+            <Line
+              dataKey="sono_horas"
+              name="Sono total"
+              type="monotone"
+              stroke="var(--color-total)"
+              strokeWidth={2.5}
+              connectNulls
+              dot={{ r: 3 }}
+            />
+          </ComposedChart>
+        </ChartContainer>
+      </div>
     );
   }
 
   if (metric === "peso") {
     return (
-      <ChartContainer config={chartConfig} className="h-64 w-full">
+      <ChartContainer config={chartConfig} className="h-60 min-w-0 max-w-full overflow-hidden">
         <ComposedChart data={days} margin={{ left: -8, right: 10, top: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis dataKey="label" tickLine={false} axisLine={false} />
@@ -152,7 +167,7 @@ function MetricChart({ metric, data }: { metric: WeeklyMetric; data: WeeklySumma
   }
 
   return (
-    <ChartContainer config={chartConfig} className="h-64 w-full">
+    <ChartContainer config={chartConfig} className="h-60 min-w-0 max-w-full overflow-hidden">
       <BarChart data={days} margin={{ left: -10, right: 8, top: 8 }}>
         <CartesianGrid vertical={false} />
         <XAxis dataKey="label" tickLine={false} axisLine={false} />
@@ -187,11 +202,11 @@ export function WeeklyDetailDialog({
 
   return (
     <Dialog open={metric !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] w-[calc(100%-1.5rem)] max-w-2xl overflow-y-auto rounded-2xl p-5 sm:p-6">
-        <DialogHeader className="pr-8 text-left">
-          <DialogTitle className="flex items-center gap-2">
-            {Icon && <Icon className="size-5 text-primary" />}
-            {details?.title} — últimos 7 dias
+      <DialogContent className="inset-x-3 bottom-3 top-auto max-h-[calc(100dvh_-_1.5rem)] min-w-0 w-auto max-w-none translate-x-0 translate-y-0 gap-3 overflow-x-hidden overflow-y-auto rounded-2xl p-4 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[90dvh] sm:w-[calc(100%_-_3rem)] sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:gap-4 sm:p-6">
+        <DialogHeader className="min-w-0 pr-8 text-left">
+          <DialogTitle className="flex min-w-0 items-start gap-2 leading-snug">
+            {Icon && <Icon className="mt-0.5 size-5 shrink-0 text-primary" />}
+            <span className="min-w-0">{details?.title} — últimos 7 dias</span>
           </DialogTitle>
           <DialogDescription>{details?.description}</DialogDescription>
         </DialogHeader>
@@ -211,7 +226,7 @@ export function WeeklyDetailDialog({
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {periodDate(weekly.data.periodo.inicio)} a {periodDate(weekly.data.periodo.fim)}
             </p>
-            <div className="rounded-xl border border-border bg-card p-2 sm:p-3">
+            <div className="min-w-0 max-w-full overflow-hidden rounded-xl border border-border bg-card p-1.5 sm:p-3">
               <MetricChart metric={metric} data={weekly.data} />
             </div>
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
