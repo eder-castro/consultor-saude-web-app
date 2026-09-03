@@ -27,9 +27,10 @@ export function Composer({
   function pickFiles(files: FileList | null) {
     setMenuOpen(false);
     if (!files?.length) return;
+    const selectedFiles = Array.from(files);
     setPendingFiles((current) => {
       const available = Math.max(0, MAX_IMAGES - current.length);
-      const selected = Array.from(files)
+      const selected = selectedFiles
         .filter((file) => file.type.startsWith("image/"))
         .slice(0, available)
         .map((file) => ({ file, url: URL.createObjectURL(file) }));
@@ -100,7 +101,7 @@ export function Composer({
           </div>
         )}
 
-        <div className="flex items-end gap-2 rounded-3xl border border-border/70 bg-[#1e1f20] p-2 shadow-lg shadow-black/10">
+        <div className="flex items-center gap-2 rounded-3xl border border-border/70 bg-[#1e1f20] p-2 shadow-lg shadow-black/10">
           <input
             ref={cameraRef}
             type="file"
@@ -173,8 +174,8 @@ export function Composer({
                 ? "Legenda para as imagens (opcional)..."
                 : "Ex: Tomei 500ml de água, dormi 7h, comi..."
             }
-            rows={2}
-            className="h-11 max-h-28 min-h-11 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-3 py-2.5 text-base leading-6 shadow-none focus-visible:ring-0"
+            rows={1}
+            className="h-14 max-h-32 min-h-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-3 py-3 text-base leading-6 shadow-none focus-visible:ring-0"
           />
 
           <Button
