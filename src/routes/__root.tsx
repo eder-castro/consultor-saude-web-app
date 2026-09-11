@@ -12,6 +12,8 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ChatProvider } from "@/providers/ChatProvider";
+import { ThemeProvider } from "@/providers/ThemeProvider";
+import { useTheme } from "@/providers/theme-context";
 
 function NotFoundComponent() {
   return (
@@ -121,12 +123,19 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ChatProvider>
-          <Outlet />
-          <Toaster richColors position="top-center" theme="dark" />
-        </ChatProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <ChatProvider>
+            <Outlet />
+            <ThemedToaster />
+          </ChatProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
+}
+
+function ThemedToaster() {
+  const { theme } = useTheme();
+  return <Toaster richColors position="top-center" theme={theme} />;
 }

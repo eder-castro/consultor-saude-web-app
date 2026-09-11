@@ -176,10 +176,38 @@
   box-shadow: var(--shadow-elegant);
 }
 
-/* Gemini-inspired neutral dark surfaces and typography. */
-:root,
-.dark {
+/* Gemini-inspired neutral surfaces and typography. */
+:root {
   --font-sans: "Google Sans", "Google Sans Text", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --background: #f6f7fb;
+  --foreground: #202124;
+  --card: #ffffff;
+  --card-foreground: #202124;
+  --popover: #ffffff;
+  --popover-foreground: #202124;
+  --primary: #3867d6;
+  --primary-foreground: #ffffff;
+  --secondary: #e8edf8;
+  --secondary-foreground: #263858;
+  --muted: #edf0f5;
+  --muted-foreground: #5f6673;
+  --accent: #e8e4fb;
+  --accent-foreground: #3f3269;
+  --border: rgb(32 33 36 / 14%);
+  --input: rgb(32 33 36 / 10%);
+  --ring: rgb(56 103 214 / 45%);
+  --sidebar: #eef1f8;
+  --sidebar-foreground: #202124;
+  --sidebar-primary: #3867d6;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e9f5;
+  --sidebar-accent-foreground: #202124;
+  --sidebar-border: rgb(32 33 36 / 12%);
+  --sidebar-ring: rgb(56 103 214 / 45%);
+  --gradient-surface: linear-gradient(160deg, #ffffff, #f1f4fa);
+}
+
+.dark {
   --background: #131314;
   --foreground: #e3e3e3;
   --card: #1e1f20;
@@ -205,4 +233,5 @@
   --sidebar-accent-foreground: #e3e3e3;
   --sidebar-border: rgb(255 255 255 / 12%);
   --sidebar-ring: rgb(168 199 250 / 60%);
+  --gradient-surface: linear-gradient(160deg, #222326, #18191b);
 }
