@@ -139,13 +139,22 @@
 
   html,
   body {
+    min-width: 0;
+    max-width: 100%;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
   }
 
+  html {
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
   body {
+    min-height: 100dvh;
+    overflow-x: clip;
     background-image:
       radial-gradient(
         ellipse 80% 50% at 20% 0%,
@@ -158,6 +167,17 @@
         transparent 60%
       );
     background-attachment: fixed;
+  }
+
+  #root {
+    min-width: 0;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    scroll-margin-block: 6rem;
   }
 }
 

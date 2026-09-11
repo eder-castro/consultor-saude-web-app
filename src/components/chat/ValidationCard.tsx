@@ -98,8 +98,8 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
   }
 
   return (
-    <div className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-6">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm uppercase tracking-wider text-muted-foreground">
             Registros detectados
@@ -130,7 +130,10 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
             </h3>
             <ul className="space-y-3">
               {group.itens.map((it) => (
-                <li key={it.id} className="flex items-center gap-3">
+                <li
+                  key={it.id}
+                  className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_7rem_auto] sm:gap-3"
+                >
                   <Checkbox
                     checked={it.confirmado}
                     disabled={readonly}
@@ -142,7 +145,7 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
                     disabled={readonly}
                     onChange={(e) => update(group.evento_tipo, it.id, { item: e.target.value })}
                     placeholder="Item"
-                    className="h-11 flex-1 bg-background text-base"
+                    className="h-11 min-w-0 bg-background text-base"
                   />
                   <Input
                     value={it.quantidade_estimada}
@@ -151,14 +154,14 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
                       update(group.evento_tipo, it.id, { quantidade_estimada: e.target.value })
                     }
                     placeholder="Qtd"
-                    className="h-11 w-28 bg-background text-base"
+                    className="col-start-2 h-11 min-w-0 bg-background text-base sm:col-start-auto sm:w-28"
                   />
                   {!readonly && (
                     <Button
                       size="icon"
                       variant="ghost"
                       onClick={() => remove(group.evento_tipo, it.id)}
-                      className="size-9 shrink-0 text-muted-foreground hover:text-destructive"
+                      className="col-start-3 row-start-1 size-11 shrink-0 text-muted-foreground hover:text-destructive sm:col-start-auto sm:row-start-auto"
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -201,7 +204,7 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
 
       {!readonly && (
         <>
-          <div className="mt-5 flex gap-3">
+          <div className="mt-5 flex flex-col gap-2 min-[380px]:flex-row min-[380px]:gap-3">
             <Button
               variant="outline"
               className="h-11 flex-1 text-base"

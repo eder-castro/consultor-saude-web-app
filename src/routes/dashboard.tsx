@@ -50,13 +50,13 @@ function DashboardPage() {
 
   return (
     <AppShell title="Dashboard do Dia">
-      <div className="h-full overflow-y-auto px-4 py-4">
-        <div className="mx-auto flex max-w-2xl flex-col gap-3">
+      <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
+        <div className="mx-auto flex min-w-0 max-w-2xl flex-col gap-3 pb-[env(safe-area-inset-bottom)]">
           {isLoading || !data ? (
             <>
               <Skeleton className="h-28 w-full rounded-2xl" />
               <Skeleton className="h-40 w-full rounded-2xl" />
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
                 <Skeleton className="h-24 rounded-2xl" />
                 <Skeleton className="h-24 rounded-2xl" />
                 <Skeleton className="h-24 rounded-2xl" />
@@ -133,7 +133,7 @@ function DashboardPage() {
                 </Card>
               </button>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
                 <MiniCard
                   icon={<Activity className="size-4" />}
                   label="Exercício"
@@ -229,12 +229,12 @@ function MiniCard({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="min-w-0 rounded-2xl border border-border bg-card p-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-3"
       aria-label={`Ver detalhes semanais de ${label}`}
     >
-      <div className="flex items-center gap-1.5 text-muted-foreground">
+      <div className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
         {icon}
-        <span className="text-xs">{label}</span>
+        <span className="min-w-0 truncate text-xs">{label}</span>
       </div>
       <p className="mt-1.5 truncate text-sm font-medium" title={value}>
         {value}

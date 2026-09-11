@@ -49,9 +49,9 @@ function LoginPage() {
   const expired =
     typeof window !== "undefined" && new URLSearchParams(window.location.search).has("expired");
   return (
-    <main className="min-h-[100dvh] bg-background px-5 py-8 text-foreground md:grid md:grid-cols-[1fr_430px] md:gap-20 md:px-16">
-      <section className="mx-auto flex max-w-xl flex-col justify-center py-10 md:py-0">
-        <div className="mb-12 flex items-center gap-3 text-primary">
+    <main className="min-h-[100dvh] min-w-0 overflow-x-hidden bg-background px-[max(1.25rem,env(safe-area-inset-left))] pb-[max(2rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] text-foreground md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,430px)] md:gap-20 md:px-16">
+      <section className="mx-auto flex min-w-0 max-w-xl flex-col justify-center py-6 md:py-0">
+        <div className="mb-8 flex items-center gap-3 text-primary sm:mb-12">
           <div className="grid size-10 place-items-center rounded-2xl bg-primary/15">
             <Sparkles className="size-5" />
           </div>
@@ -60,7 +60,7 @@ function LoginPage() {
         <p className="mb-4 text-sm font-medium uppercase tracking-[0.22em] text-primary">
           Um lugar só seu
         </p>
-        <h1 className="max-w-lg text-4xl font-semibold leading-tight tracking-[-0.04em] md:text-6xl">
+        <h1 className="max-w-lg text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl md:text-6xl">
           Cuide do que você sente, um dia de cada vez.
         </h1>
         <p className="mt-6 max-w-md text-base leading-7 text-muted-foreground">
@@ -68,10 +68,10 @@ function LoginPage() {
           julgamentos.
         </p>
       </section>
-      <section className="mx-auto flex w-full max-w-md items-center">
+      <section className="mx-auto flex min-w-0 w-full max-w-md items-center">
         <form
           onSubmit={submit}
-          className="w-full rounded-[1.75rem] border border-border bg-card/80 p-6 shadow-elegant backdrop-blur md:p-8"
+          className="min-w-0 w-full rounded-[1.75rem] border border-border bg-card/80 p-5 shadow-elegant backdrop-blur sm:p-6 md:p-8"
         >
           <div className="mb-8">
             <div className="mb-4 flex size-11 items-center justify-center rounded-2xl bg-primary/15 text-primary">

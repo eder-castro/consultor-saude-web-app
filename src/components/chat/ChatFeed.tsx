@@ -23,7 +23,7 @@ export function ChatFeed({
   }, [messages]);
 
   return (
-    <div className="h-full w-full overflow-y-auto px-4 py-6 sm:px-8 sm:py-10">
+    <div className="h-full min-w-0 w-full overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 sm:py-10">
       <div className="mx-auto flex min-h-full max-w-4xl flex-col justify-end gap-7">
         {/* Saudação limpa e fixa no topo do histórico */}
         <div className="pb-2">
@@ -114,7 +114,9 @@ function Bubble({
                 </p>
               )}
             </div>
-            {m.caption && <p className="mt-3 px-1 text-muted-foreground">{m.caption}</p>}
+            {m.caption && (
+              <p className="mt-3 break-words px-1 text-muted-foreground">{m.caption}</p>
+            )}
           </div>
         </div>
       );
@@ -123,7 +125,7 @@ function Bubble({
     return (
       <div className="flex justify-end">
         <div className="max-w-[92%] rounded-2xl rounded-tr-sm bg-[#2b2c2f] px-5 py-3 text-base leading-relaxed text-foreground sm:max-w-[85%]">
-          <p className="whitespace-pre-wrap">{m.text}</p>
+          <p className="whitespace-pre-wrap break-words">{m.text}</p>
         </div>
       </div>
     );
@@ -161,7 +163,7 @@ function Bubble({
         <div className="w-full max-w-[92%] space-y-3 rounded-3xl rounded-tl-sm border border-destructive/30 bg-destructive/5 px-4 py-3 text-base leading-relaxed sm:max-w-[85%]">
           <div className="flex items-start gap-2">
             <AlertCircle className="mt-1 size-4 shrink-0 text-destructive" />
-            <p>{m.text}</p>
+            <p className="min-w-0 break-words">{m.text}</p>
           </div>
           {m.retryable && (
             <Button

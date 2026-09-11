@@ -71,11 +71,11 @@ function PerfilPage() {
 
   return (
     <AppShell title="Perfil e exames">
-      <div className="h-full overflow-y-auto px-4 py-4">
-        <div className="mx-auto flex max-w-2xl flex-col gap-4 pb-6">
+      <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
+        <div className="mx-auto flex min-w-0 max-w-2xl flex-col gap-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
           <section className="rounded-2xl border border-border bg-card p-5">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Sua conta</p>
-            <h2 className="mt-2 text-lg font-semibold">{user?.email}</h2>
+            <h2 className="mt-2 break-all text-lg font-semibold">{user?.email}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Seus registros são privados e ficam associados apenas a esta conta.
             </p>
@@ -285,10 +285,12 @@ function SleepReviewCard({ review }: { review: SleepReviewGroup }) {
         {review.registros.map((record) => (
           <li
             key={record.id}
-            className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2"
+            className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border bg-background px-3 py-2"
           >
             <span className="min-w-0 flex-1 text-sm">{record.etapa_label}</span>
-            <span className="text-sm font-medium">{record.valor_existente || "não informado"}</span>
+            <span className="max-w-full break-words text-sm font-medium">
+              {record.valor_existente || "não informado"}
+            </span>
           </li>
         ))}
       </ul>

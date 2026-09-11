@@ -58,12 +58,12 @@ export function Composer({
   }
 
   return (
-    <div className="border-t border-border/60 bg-background/95 px-3 pb-4 pt-3 backdrop-blur sm:px-6 sm:pb-6">
-      <div className="mx-auto w-full max-w-4xl">
+    <div className="min-w-0 border-t border-border/60 bg-background/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6 sm:pb-6">
+      <div className="mx-auto min-w-0 w-full max-w-4xl">
         {pendingFiles.length > 0 && (
           <div className="mb-3 rounded-2xl border border-border/70 bg-[#1e1f20] p-3">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">
+            <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
+              <p className="min-w-0 text-sm text-muted-foreground">
                 {pendingFiles.length}{" "}
                 {pendingFiles.length === 1 ? "imagem pronta" : "imagens prontas"} para análise
                 conjunta
@@ -101,7 +101,7 @@ export function Composer({
           </div>
         )}
 
-        <div className="flex items-center gap-2 rounded-3xl border border-border/70 bg-[#1e1f20] p-2 shadow-lg shadow-black/10">
+        <div className="flex min-w-0 items-center gap-2 rounded-3xl border border-border/70 bg-[#1e1f20] p-2 shadow-lg shadow-black/10">
           <input
             ref={cameraRef}
             type="file"
@@ -169,7 +169,7 @@ export function Composer({
                 : "Ex: Tomei 500ml de água, dormi 7h, comi..."
             }
             rows={1}
-            className="h-14 max-h-32 min-h-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-3 py-3 text-base leading-6 shadow-none focus-visible:ring-0"
+            className="h-14 max-h-32 min-h-0 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-3 text-base leading-6 shadow-none focus-visible:ring-0 sm:px-3"
           />
 
           <Button
