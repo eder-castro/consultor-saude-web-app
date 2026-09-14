@@ -65,14 +65,11 @@ function GreetingHeader() {
   return (
     <div className="max-w-2xl space-y-4 pb-4 pt-6 sm:pt-12">
       <h2 className="text-3xl font-normal tracking-tight sm:text-4xl">{greeting}</h2>
-      <div className="text-base leading-relaxed text-muted-foreground sm:text-lg">
-        <p>Como posso ajudar no seu registro de hoje?</p>
-        <ul className="mt-4 space-y-2 text-sm sm:text-base">
-          <li>Enviando uma foto de uma refeição</li>
-          <li>Enviando um print de aplicativo (Sono / Atividade Física)</li>
-          <li>Conversando naturalmente pelo chat</li>
-        </ul>
-      </div>
+      <p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+        Registre seu dia do jeito mais fácil para você. Envie uma foto da refeição, compartilhe seus
+        dados de sono ou atividade, ou simplesmente conte como foi. Eu organizo tudo para você
+        revisar antes de salvar.
+      </p>
     </div>
   );
 }
