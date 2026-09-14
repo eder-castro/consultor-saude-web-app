@@ -23,8 +23,8 @@ export function ChatFeed({
   }, [messages]);
 
   return (
-    <div className="h-full min-w-0 w-full overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-5 sm:px-8 sm:py-10">
-      <div className="mx-auto flex min-h-full max-w-4xl flex-col justify-end gap-7">
+    <div className="h-full min-w-0 w-full overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-4 pb-8 [scroll-padding-bottom:1.5rem] sm:px-8 sm:py-10 sm:pb-12">
+      <div className="mx-auto flex min-h-full max-w-4xl flex-col justify-end gap-6">
         {/* Saudação limpa e fixa no topo do histórico */}
         <div className="pb-2">
           <GreetingHeader />
@@ -40,7 +40,7 @@ export function ChatFeed({
           />
         ))}
 
-        <div ref={bottomRef} />
+        <div ref={bottomRef} className="h-2 shrink-0 scroll-mb-6" />
       </div>
     </div>
   );

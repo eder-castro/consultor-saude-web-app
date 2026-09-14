@@ -105,7 +105,7 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
   }
 
   return (
-    <div className="min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-4 shadow-sm sm:p-6">
+    <div className="min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-3.5 shadow-sm sm:p-6">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm uppercase tracking-wider text-muted-foreground">
@@ -129,7 +129,7 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
         )}
       </div>
 
-      <div className="space-y-5">
+      <div className="space-y-4 sm:space-y-5">
         {groups.map((group) => (
           <section key={group.evento_tipo} className="space-y-2">
             <h3 className="text-base font-semibold text-foreground">
@@ -173,11 +173,11 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
                     )}
                   </div>
                   {group.evento_tipo === "sono" && (
-                    <div className="ml-8 grid gap-2 sm:ml-9 sm:grid-cols-2">
+                    <div className="ml-8 grid gap-x-3 gap-y-2 sm:ml-9 sm:grid-cols-2">
                       {SLEEP_PHASES.map(({ field, label }) => (
                         <label
                           key={field}
-                          className="grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-2 text-sm text-muted-foreground"
+                          className="grid grid-cols-[minmax(0,1fr)_5.75rem] items-center gap-2 text-sm text-muted-foreground"
                         >
                           <span>{label}</span>
                           <Input

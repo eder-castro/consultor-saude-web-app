@@ -60,7 +60,7 @@ export function AppShell({ children, title }: { children: ReactNode; title: stri
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+      <main className="min-h-0 min-w-0 flex-1 overflow-hidden">{children}</main>
 
       <nav className="grid shrink-0 grid-cols-3 border-t border-border/60 bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur">
         {tabs.map(({ to, label, icon: Icon }) => {

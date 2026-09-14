@@ -58,7 +58,7 @@ export function Composer({
   }
 
   return (
-    <div className="min-w-0 border-t border-border/60 bg-background/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6 sm:pb-6">
+    <div className="relative z-10 min-w-0 border-t border-border/60 bg-background/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6 sm:pb-6">
       <div className="mx-auto min-w-0 w-full max-w-4xl">
         {pendingFiles.length > 0 && (
           <div className="mb-3 rounded-2xl border border-border/70 bg-card p-3">

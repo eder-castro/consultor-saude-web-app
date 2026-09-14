@@ -93,25 +93,38 @@ function MetricChart({ metric, data }: { metric: WeeklyMetric; data: WeeklySumma
   if (metric === "sono") {
     return (
       <div className="min-w-0 max-w-full">
-        <div className="mb-2 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <div className="mb-2 grid grid-cols-2 justify-items-start gap-x-3 gap-y-1 px-1 text-[10px] text-muted-foreground min-[390px]:flex min-[390px]:flex-wrap min-[390px]:justify-center min-[390px]:text-[11px]">
           {[
-            ["Profundo", "var(--color-profundo)"],
-            ["Leve", "var(--color-leve)"],
-            ["REM", "var(--color-rem)"],
-            ["Acordado", "var(--color-acordado)"],
-            ["Sono total", "var(--color-total)"],
+            ["Profundo", chartConfig.profundo.color],
+            ["Leve", chartConfig.leve.color],
+            ["REM", chartConfig.rem.color],
+            ["Acordado", chartConfig.acordado.color],
+            ["Sono total", chartConfig.total.color],
           ].map(([label, color]) => (
-            <span key={label} className="inline-flex items-center gap-1 whitespace-nowrap">
+            <span
+              key={label}
+              className={`inline-flex items-center gap-1 whitespace-nowrap ${
+                label === "Sono total" ? "col-span-2 justify-self-center" : ""
+              }`}
+            >
               <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
               {label}
             </span>
           ))}
         </div>
         <ChartContainer config={chartConfig} className="h-60 min-w-0 max-w-full overflow-hidden">
-          <ComposedChart data={days} margin={{ left: -18, right: 2, top: 8 }}>
+          <ComposedChart data={days} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
             <CartesianGrid vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} />
-            <YAxis tickLine={false} axisLine={false} width={36} unit="h" />
+            <XAxis
+              dataKey="label"
+              tickLine={false}
+              axisLine={false}
+              tickMargin={7}
+              height={32}
+              minTickGap={24}
+              tick={{ fontSize: 10 }}
+            />
+            <YAxis tickLine={false} axisLine={false} width={42} unit="h" tick={{ fontSize: 10 }} />
             <ChartTooltip content={<ChartTooltipContent />} />
             <Bar
               dataKey="sono_profundo_horas"
@@ -147,10 +160,25 @@ function MetricChart({ metric, data }: { metric: WeeklyMetric; data: WeeklySumma
   if (metric === "peso") {
     return (
       <ChartContainer config={chartConfig} className="h-60 min-w-0 max-w-full overflow-hidden">
-        <ComposedChart data={days} margin={{ left: -8, right: 10, top: 8 }}>
+        <ComposedChart data={days} margin={{ left: 8, right: 10, top: 8, bottom: 8 }}>
           <CartesianGrid vertical={false} />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} />
-          <YAxis tickLine={false} axisLine={false} width={44} domain={["auto", "auto"]} unit="kg" />
+          <XAxis
+            dataKey="label"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={7}
+            height={32}
+            minTickGap={24}
+            tick={{ fontSize: 10 }}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={48}
+            domain={["auto", "auto"]}
+            unit="kg"
+            tick={{ fontSize: 10 }}
+          />
           <ChartTooltip content={<ChartTooltipContent />} />
           <Line
             dataKey={details.dataKey}
@@ -168,10 +196,24 @@ function MetricChart({ metric, data }: { metric: WeeklyMetric; data: WeeklySumma
 
   return (
     <ChartContainer config={chartConfig} className="h-60 min-w-0 max-w-full overflow-hidden">
-      <BarChart data={days} margin={{ left: -10, right: 8, top: 8 }}>
+      <BarChart data={days} margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
         <CartesianGrid vertical={false} />
-        <XAxis dataKey="label" tickLine={false} axisLine={false} />
-        <YAxis tickLine={false} axisLine={false} width={42} unit={details.unit} />
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={7}
+          height={32}
+          minTickGap={24}
+          tick={{ fontSize: 10 }}
+        />
+        <YAxis
+          tickLine={false}
+          axisLine={false}
+          width={48}
+          unit={details.unit}
+          tick={{ fontSize: 10 }}
+        />
         <ChartTooltip content={<ChartTooltipContent />} />
         <Bar
           dataKey={details.dataKey}
@@ -202,13 +244,13 @@ export function WeeklyDetailDialog({
 
   return (
     <Dialog open={metric !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="inset-x-3 bottom-3 top-auto max-h-[calc(100dvh_-_1.5rem)] min-w-0 w-auto max-w-none translate-x-0 translate-y-0 gap-3 overflow-x-hidden overflow-y-auto rounded-2xl p-4 sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[90dvh] sm:w-[calc(100%_-_3rem)] sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:gap-4 sm:p-6">
+      <DialogContent className="inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] top-auto max-h-[calc(100dvh_-_max(1.5rem,env(safe-area-inset-bottom)))] min-w-0 w-auto max-w-none translate-x-0 translate-y-0 gap-3 overflow-x-hidden overflow-y-auto rounded-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:max-h-[90dvh] sm:w-[calc(100%_-_3rem)] sm:max-w-2xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:gap-4 sm:p-6">
         <DialogHeader className="min-w-0 pr-8 text-left">
           <DialogTitle className="flex min-w-0 items-start gap-2 leading-snug">
             {Icon && <Icon className="mt-0.5 size-5 shrink-0 text-primary" />}
             <span className="min-w-0">{details?.title} — últimos 7 dias</span>
           </DialogTitle>
-          <DialogDescription>{details?.description}</DialogDescription>
+          <DialogDescription className="pr-2">{details?.description}</DialogDescription>
         </DialogHeader>
 
         {weekly.isLoading || !metric ? (
