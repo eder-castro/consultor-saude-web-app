@@ -22,6 +22,7 @@ test("routes mixed food and hydration groups to their own tables", async () => {
     grupos: [
       {
         evento_tipo: "alimentacao",
+        horario: "12:35",
         itens: [
           {
             item: "arroz",
@@ -52,6 +53,7 @@ test("routes mixed food and hydration groups to their own tables", async () => {
         item: "arroz",
         quantidade: "1 porção",
         evento_tipo: "alimentacao",
+        horario: "12:35",
         owner_id: "8e165e4f-59bc-4b94-9508-4f596ee87584",
       }),
     ],

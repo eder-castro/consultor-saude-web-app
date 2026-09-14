@@ -24,6 +24,10 @@ export type Item = z.infer<typeof ItemSchema>;
 
 export const ValidationGroupSchema = z.object({
   evento_tipo: EventoTipo,
+  horario: z
+    .string()
+    .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
+    .optional(),
   itens: z.array(ItemSchema).min(1),
 });
 export type ValidationGroup = z.infer<typeof ValidationGroupSchema>;

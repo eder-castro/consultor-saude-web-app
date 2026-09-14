@@ -47,6 +47,11 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
       ),
     );
   }
+  function updateGroup(groupType: EventoTipo, patch: Partial<ValidationGroup>) {
+    setGroups((current) =>
+      current.map((group) => (group.evento_tipo === groupType ? { ...group, ...patch } : group)),
+    );
+  }
   function remove(groupType: EventoTipo, id: string) {
     setGroups((current) =>
       current.map((group) =>
@@ -78,6 +83,15 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
   }
 
   async function confirm() {
+    const invalidMealTime = groups.some(
+      (group) =>
+        group.evento_tipo === "alimentacao" &&
+        !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(group.horario ?? ""),
+    );
+    if (invalidMealTime) {
+      toast.error("Confira o horário da refeição antes de salvar.");
+      return;
+    }
     const selectedGroups = groups
       .map((group) => ({
         ...group,
@@ -135,6 +149,21 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
             <h3 className="text-base font-semibold text-foreground">
               {TIPO_LABEL[group.evento_tipo]}
             </h3>
+            {group.evento_tipo === "alimentacao" && (
+              <label className="flex max-w-48 items-center gap-3 text-sm text-muted-foreground">
+                <span className="shrink-0">Horário</span>
+                <Input
+                  type="time"
+                  value={group.horario ?? ""}
+                  disabled={readonly}
+                  required
+                  onChange={(event) =>
+                    updateGroup(group.evento_tipo, { horario: event.target.value })
+                  }
+                  className="h-10 min-w-0 bg-background text-base text-foreground"
+                />
+              </label>
+            )}
             <ul className="space-y-3">
               {group.itens.map((it) => (
                 <li key={it.id} className="space-y-2">

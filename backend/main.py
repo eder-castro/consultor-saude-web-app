@@ -14,6 +14,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any, Literal
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -131,6 +132,7 @@ class GeminiItem(BaseModel):
 class GeminiGroup(BaseModel):
     evento_tipo: str
     itens: list[GeminiItem] = Field(min_length=1, max_length=50)
+    horario: str | None = Field(default=None, pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 
 
 class GeminiPayload(BaseModel):
@@ -588,6 +590,7 @@ def gemini_schema() -> dict[str, Any]:
                     "type": "OBJECT",
                     "properties": {
                         "evento_tipo": {"type": "STRING", "enum": list(EVENT_TYPES)},
+                        "horario": {"type": "STRING", "nullable": True},
                         "itens": {
                             "type": "ARRAY",
                             "items": {
@@ -678,6 +681,9 @@ Uma mensagem pode conter mais de um tipo. Nesse caso, não use um único tipo pa
 toda a mensagem: crie um grupo separado por tipo em "grupos". Cada item deve
 aparecer em exatamente um grupo. Por exemplo, "comi arroz e bebi água" deve
 gerar um grupo alimentacao com arroz e um grupo hidratacao com água.
+Em cada grupo, use "horario" no formato HH:MM quando o usuário informar
+explicitamente quando o evento ocorreu. Não deduza o horário pelo tipo de
+refeição; quando ele não for informado, retorne null.
 Analise todas as imagens em conjunto, comparando-as quando necessário, e una os
 fatos explícitos sem duplicar o que aparece em mais de uma imagem. Analise também
 o texto digitado e todo texto legível nas imagens. Uma legenda sobre sono junto
@@ -997,6 +1003,7 @@ async def analyze_with_gemini(
             )
 
     groups_by_type: dict[str, list[GeminiItem]] = {}
+    times_by_type: dict[str, str | None] = {}
     for group in parsed.grupos:
         if group.evento_tipo not in EVENT_TYPES:
             raise HTTPException(
@@ -1004,11 +1011,21 @@ async def analyze_with_gemini(
                 detail="O Gemini retornou um tipo de registro inválido.",
             )
         groups_by_type.setdefault(group.evento_tipo, []).extend(group.itens)
+        if group.horario and not times_by_type.get(group.evento_tipo):
+            times_by_type[group.evento_tipo] = group.horario
+
+    local_now = (context or {}).get("local_now") or {}
+    default_time = local_now.get("horario")
+    if not isinstance(default_time, str) or not re.fullmatch(
+        r"(?:[01]\d|2[0-3]):[0-5]\d", default_time
+    ):
+        default_time = datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%H:%M")
 
     return {
         "grupos": [
             {
                 "evento_tipo": evento_tipo,
+                "horario": times_by_type.get(evento_tipo) or default_time,
                 "itens": [
                     {
                         "id": str(uuid4()),

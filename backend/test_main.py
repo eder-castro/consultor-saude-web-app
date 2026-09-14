@@ -198,6 +198,45 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
             result["grupos"][0]["itens"][0]["quantidade_estimada"],
             "não informado",
         )
+        self.assertRegex(result["grupos"][0]["horario"], r"^\d{2}:\d{2}$")
+
+    async def test_uses_explicit_event_time_and_defaults_to_sao_paulo_time(self) -> None:
+        response = gemini_response(
+            {
+                "grupos": [
+                    {
+                        "evento_tipo": "alimentacao",
+                        "horario": "12:40",
+                        "itens": [
+                            {
+                                "item": "almoço",
+                                "quantidade_estimada": "1 porção",
+                                "confirmado": True,
+                            }
+                        ],
+                    },
+                    {
+                        "evento_tipo": "hidratacao",
+                        "itens": [
+                            {
+                                "item": "água",
+                                "quantidade_estimada": "300 ml",
+                                "confirmado": True,
+                            }
+                        ],
+                    },
+                ]
+            }
+        )
+        with patch.object(main, "call_gemini_sync", return_value=response):
+            result = await main.analyze_with_gemini(
+                main.ProcessInputRequest(text="almocei às 12:40 e bebi água"),
+                context={"local_now": {"data": "2026-09-13", "horario": "14:25"}},
+            )
+
+        groups = {group["evento_tipo"]: group for group in result["grupos"]}
+        self.assertEqual(groups["alimentacao"]["horario"], "12:40")
+        self.assertEqual(groups["hidratacao"]["horario"], "14:25")
 
     async def test_uses_gemini_rest_field_names_for_images(self) -> None:
         response = gemini_response(

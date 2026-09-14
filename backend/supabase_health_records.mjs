@@ -107,6 +107,17 @@ function normalizeNullable(value) {
   return String(value);
 }
 
+function normalizeTime(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const match = String(value)
+    .trim()
+    .match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) {
+    throw new SupabaseRecordsError("invalid_time", "Informe o horário no formato HH:MM.", 422);
+  }
+  return `${match[1]}:${match[2]}`;
+}
+
 function requireOwnerId(value) {
   const ownerId = String(value ?? "").trim();
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(ownerId)) {
@@ -122,7 +133,7 @@ function requireOwnerId(value) {
 function normalizeEventRecord(record, eventType, now, ownerId) {
   const importKey = record.import_key ?? `app:${randomUUID()}`;
   const data = record.data ?? now.data;
-  const horario = record.horario ?? now.horario;
+  const horario = normalizeTime(record.horario, now.horario);
   const item = String(record.item ?? record.tipo ?? "").trim();
   const quantidade = normalizeNullable(
     record.quantidade ?? record.quantidade_estimada ?? record.duracao_min,
@@ -319,7 +330,14 @@ function normalizeRecords(payload) {
         eventType === "sono"
           ? consolidateSleepItems(group.itens ?? [])
           : (group.itens ?? []).filter((item) => item.confirmado !== false);
-      return items.map((item) => normalizeEventRecord(item, eventType, now, ownerId));
+      return items.map((item) =>
+        normalizeEventRecord(
+          { ...item, horario: item.horario ?? group.horario },
+          eventType,
+          now,
+          ownerId,
+        ),
+      );
     });
   }
 
