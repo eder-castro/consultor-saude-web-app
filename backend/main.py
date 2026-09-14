@@ -650,8 +650,9 @@ def gemini_prompt(
 CONTEXTO PRIVADO CONFIRMADO DO USUÁRIO:
 {persisted_context}
 
-Use esse contexto apenas para calibrar um insight curto e contextual. Não invente
-resultados ausentes e não transforme uma observação em diagnóstico.
+Use esse contexto para calibrar orientações educativas e contextualizadas. Não
+invente resultados ausentes, não transforme uma observação em diagnóstico e não
+atribua à imagem uma condição que só poderia ser confirmada por avaliação clínica.
 """
         if persisted_context
         else ""
@@ -662,7 +663,9 @@ Você é um assistente de registro de saúde em português do Brasil.
 Interprete o conteúdo abaixo e extraia somente fatos explicitamente observados.
 Não dê diagnóstico nem prescrição. Insights devem ser curtos, prudentes e
 educativos, baseados apenas no contexto clínico confirmado.
-Não invente itens ou quantidades; quando a quantidade não estiver clara, use "não informado".
+Não invente itens. Em texto, preserve a quantidade informada pelo usuário. Em
+fotos de alimentos e bebidas, faça uma estimativa visual explícita da porção de
+cada item visível, mesmo que aproximada.
 
 Classifique cada fato observado em um tipo:
 - alimentacao: refeições, alimentos ou bebidas que não sejam apenas água;
@@ -688,6 +691,24 @@ Regras específicas:
   sono_rem_min e acordado_min, usando valores como "85 min". Não some o tempo
   acordado à duração total e não crie itens separados para as fases;
 - fotos de refeições devem gerar alimentação com um item por alimento visível;
+- para cada alimento ou bebida visível em foto, preencha "quantidade_estimada"
+  com a melhor estimativa visual possível. Combine uma medida prática com massa
+  ou volume quando for razoável, por exemplo "cerca de 3 colheres de sopa
+  (90–120 g)", "1 filé médio (120–150 g)", "1 copo (250–300 ml)" ou "metade do
+  prato (aprox. 200 g)". Use dimensões relativas ao prato, copo, talher ou
+  embalagem como referência;
+- quando a foto não permitir uma medida pontual confiável, forneça uma faixa e
+  sinalize a incerteza com termos como "cerca de", "aprox." ou "estimado
+  visualmente". Use "não informado" somente quando não houver referência visual
+  suficiente para estimar;
+- o campo "resumo" deve trazer uma análise um pouco mais completa, em 3 a 5
+  frases: descreva a composição observada, destaque um ponto positivo e dê de
+  uma a três sugestões práticas de melhoria. Quando houver contexto clínico
+  confirmado, relacione as sugestões somente aos aspectos pertinentes desse
+  contexto e explique a relação com linguagem prudente. Quando não houver
+  contexto clínico, ofereça apenas orientações gerais de equilíbrio alimentar;
+- não estime calorias, macronutrientes, açúcar, sódio ou índice glicêmico sem
+  informação suficiente sobre ingredientes, preparo e quantidade;
 - textos impressos na foto contam como fonte explícita e devem ser transcritos;
 - nunca classifique sono ou refeição como "outro" quando esses fatos estiverem visíveis.
 

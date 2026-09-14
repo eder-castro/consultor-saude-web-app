@@ -155,6 +155,20 @@ class SimulatedGeminiTests(unittest.IsolatedAsyncioTestCase):
         self.api_key.start()
         self.addCleanup(self.api_key.stop)
 
+    def test_photo_prompt_requests_portion_estimates_and_contextual_guidance(self) -> None:
+        prompt = main.gemini_prompt(
+            None,
+            1,
+            context={"profile": {"clinical_profile": "hipertensão confirmada"}},
+        )
+        normalized_prompt = " ".join(prompt.split())
+
+        self.assertIn("estimativa visual explícita da porção", normalized_prompt)
+        self.assertIn("massa ou volume", normalized_prompt)
+        self.assertIn("3 a 5", normalized_prompt)
+        self.assertIn("contexto clínico confirmado", normalized_prompt)
+        self.assertIn("não estime calorias", normalized_prompt)
+
     async def test_accepts_valid_json_and_normalizes_items(self) -> None:
         response = gemini_response(
             {
