@@ -9,3 +9,4 @@
 - [Mobile image decoding](mobile-image-decoding.md) — Prefer HTML image decoding before canvas conversion; Android Chrome may reject valid camera files via createImageBitmap.
 - [Sleep phase preservation](sleep-phase-preservation.md) — Keep sleep stages alongside the consolidated total so weekly views can explain sleep composition.
 - [Bun transitive overrides](bun-transitive-overrides.md) — Bun ignores nested overrides; use flat safe resolutions and validate older consumers.
+- [GitHub push authentication](github-push-authentication.md) — OAuth API access may work while Replit Git askpass stays invalid; verify both paths before retrying pushes.
