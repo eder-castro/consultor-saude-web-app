@@ -982,9 +982,11 @@ export async function reviewHealthExam(connectors, payload) {
 }
 
 async function listChatMessages(connectors, ownerId) {
+  const today = saoPauloNow().data;
   const params = new URLSearchParams({
     select: "client_id,role,kind,payload,sequence,created_at",
     owner_id: `eq.${requireOwnerId(ownerId)}`,
+    created_at: `gte.${today}T00:00:00-03:00`,
     order: "sequence.asc,created_at.asc",
     limit: "100",
   });

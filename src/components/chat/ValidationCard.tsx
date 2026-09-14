@@ -16,6 +16,13 @@ const TIPO_LABEL: Record<EventoTipo, string> = {
   outro: "Registro",
 };
 
+const SLEEP_PHASES = [
+  { field: "sono_profundo_min", label: "Sono profundo" },
+  { field: "sono_leve_min", label: "Sono leve" },
+  { field: "sono_rem_min", label: "Sono REM" },
+  { field: "acordado_min", label: "Acordado" },
+] as const satisfies ReadonlyArray<{ field: keyof Item; label: string }>;
+
 type Props = {
   payload: ValidationPayload;
   status: "pending" | "saved" | "discarded";
@@ -130,41 +137,62 @@ export function ValidationCard({ payload, status, onResolved }: Props) {
             </h3>
             <ul className="space-y-3">
               {group.itens.map((it) => (
-                <li
-                  key={it.id}
-                  className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_7rem_auto] sm:gap-3"
-                >
-                  <Checkbox
-                    checked={it.confirmado}
-                    disabled={readonly}
-                    onCheckedChange={(v) => update(group.evento_tipo, it.id, { confirmado: !!v })}
-                    className="size-6 shrink-0"
-                  />
-                  <Input
-                    value={it.item}
-                    disabled={readonly}
-                    onChange={(e) => update(group.evento_tipo, it.id, { item: e.target.value })}
-                    placeholder="Item"
-                    className="h-11 min-w-0 bg-background text-base"
-                  />
-                  <Input
-                    value={it.quantidade_estimada}
-                    disabled={readonly}
-                    onChange={(e) =>
-                      update(group.evento_tipo, it.id, { quantidade_estimada: e.target.value })
-                    }
-                    placeholder="Qtd"
-                    className="col-start-2 h-11 min-w-0 bg-background text-base sm:col-start-auto sm:w-28"
-                  />
-                  {!readonly && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => remove(group.evento_tipo, it.id)}
-                      className="col-start-3 row-start-1 size-11 shrink-0 text-muted-foreground hover:text-destructive sm:col-start-auto sm:row-start-auto"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                <li key={it.id} className="space-y-2">
+                  <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 sm:grid-cols-[auto_minmax(0,1fr)_7rem_auto] sm:gap-3">
+                    <Checkbox
+                      checked={it.confirmado}
+                      disabled={readonly}
+                      onCheckedChange={(v) => update(group.evento_tipo, it.id, { confirmado: !!v })}
+                      className="size-6 shrink-0"
+                    />
+                    <Input
+                      value={it.item}
+                      disabled={readonly}
+                      onChange={(e) => update(group.evento_tipo, it.id, { item: e.target.value })}
+                      placeholder="Item"
+                      className="h-11 min-w-0 bg-background text-base"
+                    />
+                    <Input
+                      value={it.quantidade_estimada}
+                      disabled={readonly}
+                      onChange={(e) =>
+                        update(group.evento_tipo, it.id, { quantidade_estimada: e.target.value })
+                      }
+                      placeholder="Qtd"
+                      className="col-start-2 h-11 min-w-0 bg-background text-base sm:col-start-auto sm:w-28"
+                    />
+                    {!readonly && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => remove(group.evento_tipo, it.id)}
+                        className="col-start-3 row-start-1 size-11 shrink-0 text-muted-foreground hover:text-destructive sm:col-start-auto sm:row-start-auto"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                  {group.evento_tipo === "sono" && (
+                    <div className="ml-8 grid gap-2 sm:ml-9 sm:grid-cols-2">
+                      {SLEEP_PHASES.map(({ field, label }) => (
+                        <label
+                          key={field}
+                          className="grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-2 text-sm text-muted-foreground"
+                        >
+                          <span>{label}</span>
+                          <Input
+                            value={it[field] ?? ""}
+                            disabled={readonly}
+                            onChange={(e) =>
+                              update(group.evento_tipo, it.id, { [field]: e.target.value })
+                            }
+                            placeholder="minutos"
+                            inputMode="numeric"
+                            className="h-10 min-w-0 bg-background text-base text-foreground"
+                          />
+                        </label>
+                      ))}
+                    </div>
                   )}
                 </li>
               ))}

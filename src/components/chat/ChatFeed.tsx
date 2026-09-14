@@ -97,7 +97,7 @@ function Bubble({
                 imageUrls.map((url, index) => (
                   <div
                     key={`${url}-${index}`}
-                    className="overflow-hidden rounded-2xl border border-white/10 bg-transparent p-0.5"
+                    className="overflow-hidden rounded-2xl border border-border/70 bg-transparent p-0.5"
                   >
                     <img
                       src={url}
@@ -124,7 +124,7 @@ function Bubble({
 
     return (
       <div className="flex justify-end">
-        <div className="max-w-[92%] rounded-2xl rounded-tr-sm bg-[#2b2c2f] px-5 py-3 text-base leading-relaxed text-foreground sm:max-w-[85%]">
+        <div className="max-w-[92%] rounded-2xl rounded-tr-sm bg-muted px-5 py-3 text-base leading-relaxed text-foreground sm:max-w-[85%]">
           <p className="whitespace-pre-wrap break-words">{m.text}</p>
         </div>
       </div>

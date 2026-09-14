@@ -356,15 +356,6 @@ export async function getWeeklySummary(): Promise<WeeklySummary> {
   return WeeklySummarySchema.parse(json);
 }
 
-export async function generateDailyReport(): Promise<{ ok: true }> {
-  if (isMockMode()) {
-    await sleep(700);
-    return { ok: true };
-  }
-  const json = await fetchApi("/generate-report", { method: "POST" });
-  return SaveResponseSchema.parse(json);
-}
-
 export async function testConnection(): Promise<boolean> {
   if (isMockMode()) return false;
   try {

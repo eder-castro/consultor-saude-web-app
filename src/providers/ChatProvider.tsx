@@ -21,7 +21,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       .then((rows) => {
         if (cancelled) return;
         setMessages(
-          rows.map(deserializeMessage).filter((message): message is ChatMessage => !!message),
+          rows
+            .filter((row) => getSaoPauloDateKey(new Date(row.created_at)) === getSaoPauloDateKey())
+            .map(deserializeMessage)
+            .filter((message): message is ChatMessage => !!message),
         );
         setHydratedOwnerId(user.id);
       })
@@ -33,6 +36,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let timer: number;
+    const scheduleRollover = () => {
+      timer = window.setTimeout(() => {
+        setMessages([]);
+        scheduleRollover();
+      }, millisecondsUntilNextSaoPauloDay());
+    };
+    scheduleRollover();
+    return () => window.clearTimeout(timer);
   }, [user?.id]);
 
   useEffect(() => {
@@ -134,4 +150,28 @@ function deserializeMessage(row: ChatHistoryRow): ChatMessage | null {
     };
   }
   return null;
+}
+
+function getSaoPauloDateKey(date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function millisecondsUntilNextSaoPauloDay(): number {
+  const now = Date.now();
+  const today = getSaoPauloDateKey(new Date(now));
+  let low = now;
+  let high = now + 30 * 60 * 60 * 1000;
+
+  while (high - low > 1_000) {
+    const middle = Math.floor((low + high) / 2);
+    if (getSaoPauloDateKey(new Date(middle)) === today) low = middle;
+    else high = middle;
+  }
+
+  return Math.max(1_000, high - now + 100);
 }

@@ -61,7 +61,7 @@ export function Composer({
     <div className="min-w-0 border-t border-border/60 bg-background/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur sm:px-6 sm:pb-6">
       <div className="mx-auto min-w-0 w-full max-w-4xl">
         {pendingFiles.length > 0 && (
-          <div className="mb-3 rounded-2xl border border-border/70 bg-[#1e1f20] p-3">
+          <div className="mb-3 rounded-2xl border border-border/70 bg-card p-3">
             <div className="mb-2 flex min-w-0 items-center justify-between gap-3">
               <p className="min-w-0 text-sm text-muted-foreground">
                 {pendingFiles.length}{" "}
@@ -101,7 +101,7 @@ export function Composer({
           </div>
         )}
 
-        <div className="flex min-w-0 items-center gap-2 rounded-3xl border border-border/70 bg-[#1e1f20] p-2 shadow-lg shadow-black/10">
+        <div className="flex min-w-0 items-center gap-2 rounded-3xl border border-border/70 bg-card p-2 shadow-lg shadow-black/10">
           <input
             ref={cameraRef}
             type="file"

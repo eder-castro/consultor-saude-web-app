@@ -1,14 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { WeeklyDetailDialog, type WeeklyMetric } from "@/components/dashboard/WeeklyDetailDialog";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { generateDailyReport, getDailySummary, getSleepReviews } from "@/lib/api";
-import { Activity, Droplet, Moon, Scale, Utensils, FileText } from "lucide-react";
-import { toast } from "sonner";
+import { getDailySummary, getSleepReviews } from "@/lib/api";
+import { Activity, Droplet, Moon, Scale, Utensils } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 export const Route = createFileRoute("/dashboard")({
@@ -30,7 +28,6 @@ function ProtectedDashboardPage() {
 }
 
 function DashboardPage() {
-  const qc = useQueryClient();
   const [weeklyMetric, setWeeklyMetric] = useState<WeeklyMetric | null>(null);
   const { data, isLoading } = useQuery({
     queryKey: ["daily-summary"],
@@ -42,12 +39,6 @@ function DashboardPage() {
     queryFn: getSleepReviews,
     refetchOnWindowFocus: true,
   });
-  const report = useMutation({
-    mutationFn: generateDailyReport,
-    onSuccess: () => toast.success("Relatório do dia gerado."),
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Falha no relatório."),
-  });
-
   return (
     <AppShell title="Dashboard do Dia">
       <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
@@ -162,19 +153,6 @@ function DashboardPage() {
                   <p className="mt-1 text-sm">{data.tendencia}</p>
                 </Card>
               )}
-
-              <Button
-                size="lg"
-                className="mt-2"
-                disabled={report.isPending}
-                onClick={() => {
-                  report.mutate();
-                  qc.invalidateQueries({ queryKey: ["daily-summary"] });
-                }}
-              >
-                <FileText className="size-4" />
-                {report.isPending ? "Gerando..." : "Gerar relatório do dia"}
-              </Button>
             </>
           )}
         </div>
