@@ -781,6 +781,131 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
             ["session-user", "revoke-session", "session-user"],
         )
 
+    @staticmethod
+    def _login_request(address: str = "203.0.113.7") -> MagicMock:
+        request = MagicMock()
+        request.headers = {"x-forwarded-for": f"{address}, 10.0.0.1"}
+        return request
+
+    async def test_login_is_blocked_after_repeated_failures_for_same_email(self) -> None:
+        main._auth_failures.clear()
+        helper = AsyncMock(return_value={"ok": True, "authenticated": False})
+        body = main.CredentialsRequest(email="Dono@Exemplo.com", password="senha-errada")
+
+        with patch.object(main, "run_supabase_helper", new=helper):
+            for attempt in range(main.AUTH_MAX_FAILURES_PER_EMAIL):
+                with self.assertRaises(HTTPException) as captured:
+                    # IPs diferentes: o limite por e-mail vale mesmo trocando de IP.
+                    await main.auth_login(body, Response(), self._login_request(f"198.51.100.{attempt}"))
+                self.assertEqual(captured.exception.status_code, 401)
+            with self.assertRaises(HTTPException) as blocked:
+                await main.auth_login(body, Response(), self._login_request("198.51.100.99"))
+
+        self.assertEqual(blocked.exception.status_code, 429)
+        self.assertIn("Retry-After", blocked.exception.headers)
+        self.assertEqual(helper.await_count, main.AUTH_MAX_FAILURES_PER_EMAIL)
+        main._auth_failures.clear()
+
+    async def test_successful_login_clears_failures_for_email(self) -> None:
+        main._auth_failures.clear()
+        failing = AsyncMock(return_value={"ok": True, "authenticated": False})
+        body = main.CredentialsRequest(email="pessoa@exemplo.com", password="senha-segura")
+        with patch.object(main, "run_supabase_helper", new=failing):
+            for _ in range(main.AUTH_MAX_FAILURES_PER_EMAIL - 1):
+                with self.assertRaises(HTTPException):
+                    await main.auth_login(body, Response(), self._login_request())
+
+        user = {"id": "user-1", "email": "pessoa@exemplo.com"}
+        ok = AsyncMock(return_value={"ok": True, "authenticated": True, "user": user})
+        with (
+            patch.dict(os.environ, {"COOKIE_SECURE": "false"}),
+            patch.object(main, "run_supabase_helper", new=ok),
+        ):
+            self.assertEqual(await main.auth_login(body, Response(), self._login_request()), user)
+
+        self.assertNotIn("email:pessoa@exemplo.com", main._auth_failures)
+        main._auth_failures.clear()
+
+    async def test_many_failures_from_one_client_are_blocked_across_emails(self) -> None:
+        main._auth_failures.clear()
+        helper = AsyncMock(return_value={"ok": True, "authenticated": False})
+        with patch.object(main, "run_supabase_helper", new=helper):
+            for index in range(main.AUTH_MAX_FAILURES_PER_CLIENT):
+                with self.assertRaises(HTTPException):
+                    await main.auth_login(
+                        main.CredentialsRequest(email=f"teste{index}@exemplo.com", password="senha-errada"),
+                        Response(),
+                        self._login_request(),
+                    )
+            with self.assertRaises(HTTPException) as blocked:
+                await main.auth_login(
+                    main.CredentialsRequest(email="outro@exemplo.com", password="senha-errada"),
+                    Response(),
+                    self._login_request(),
+                )
+        self.assertEqual(blocked.exception.status_code, 429)
+        main._auth_failures.clear()
+
+    def test_password_hash_uses_stronger_scrypt_and_accepts_legacy_hashes(self) -> None:
+        encoded = main.hash_password("senha-segura")
+        self.assertTrue(encoded.startswith(f"scrypt${2**16}$8$1$"))
+        self.assertTrue(main.verify_password("senha-segura", encoded))
+        self.assertFalse(main.verify_password("senha-errada", encoded))
+
+        import hashlib
+        salt = bytes(16)
+        legacy_digest = hashlib.scrypt(b"senha-antiga", salt=salt, n=2**14, r=8, p=1, dklen=64)
+        legacy = f"scrypt$16384$8$1${salt.hex()}${legacy_digest.hex()}"
+        self.assertTrue(main.verify_password("senha-antiga", legacy))
+
+    async def test_storage_errors_do_not_leak_internal_details(self) -> None:
+        class FakeProcess:
+            returncode = 1
+
+            def __init__(self, stdout: bytes, stderr: bytes = b"") -> None:
+                self._out = (stdout, stderr)
+
+            async def communicate(self, input=None):  # noqa: A002 - mesma assinatura do asyncio
+                return self._out
+
+        raw = {"ok": False, "error": {
+            "code": "supabase_error",
+            "message": 'Supabase respondeu 400: column "segredo" of relation "health_users" does not exist',
+            "status": 400,
+        }}
+        cases = [
+            FakeProcess(json.dumps(raw).encode()),
+            FakeProcess(b"nao-e-json", b"Traceback: /home/runner/workspace/backend/x.mjs linha 10"),
+        ]
+        for process in cases:
+            with patch.object(main.asyncio, "create_subprocess_exec", AsyncMock(return_value=process)):
+                with self.assertRaises(HTTPException) as captured:
+                    await main.run_json_helper(
+                        ["bun", "helper.mjs", "acao"], payload={}, timeout_seconds=5,
+                        connector_name="Supabase",
+                    )
+            self.assertEqual(captured.exception.status_code, 502)
+            self.assertNotIn("health_users", captured.exception.detail)
+            self.assertNotIn("Traceback", captured.exception.detail)
+
+    def test_api_docs_are_disabled_by_default(self) -> None:
+        self.assertIsNone(main.app.openapi_url)
+        self.assertIsNone(main.app.docs_url)
+
+    def test_gemini_key_is_sent_in_header_not_in_url(self) -> None:
+        response = MagicMock()
+        response.__enter__.return_value.read.return_value = b'{"candidates": []}'
+        with (
+            patch.object(main, "GEMINI_API_KEY", "chave-secreta-teste"),
+            patch.object(main.urllib.request, "urlopen", return_value=response) as urlopen,
+        ):
+            main.call_gemini_sync({"contents": []}, ["gemini-3.1-flash-lite"])
+
+        request = urlopen.call_args.args[0]
+        self.assertNotIn("chave-secreta-teste", request.full_url)
+        self.assertNotIn("key=", request.full_url)
+        self.assertEqual(request.get_header("X-goog-api-key"), "chave-secreta-teste")
+
     async def test_owner_registration_requires_administrative_activation(self) -> None:
         helper = AsyncMock()
         with (

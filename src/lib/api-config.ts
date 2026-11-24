@@ -1,31 +1,19 @@
-import { useEffect, useState } from "react";
-
-const URL_KEY = "health.api.baseUrl";
+// A API fica sempre no mesmo domínio do app, em /api (proxy do Vite em desenvolvimento e
+// scripts/production-server.mjs em produção). Antes a URL podia ser trocada pelo
+// localStorage (resto do modo demo); fixar evita que dados do usuário sejam enviados a
+// outro servidor caso alguém consiga gravar no localStorage do navegador.
 export type ApiConfig = { baseUrl: string };
 
+const API_CONFIG: ApiConfig = Object.freeze({ baseUrl: "/api" });
+
 export function readConfig(): ApiConfig {
-  if (typeof window === "undefined") return { baseUrl: "/api" };
-  return {
-    baseUrl: localStorage.getItem(URL_KEY) ?? "/api",
-  };
+  return API_CONFIG;
 }
 
-export function writeConfig(cfg: ApiConfig) {
-  localStorage.setItem(URL_KEY, cfg.baseUrl);
-  window.dispatchEvent(new CustomEvent("health:config-changed"));
+export function useApiConfig(): ApiConfig {
+  return API_CONFIG;
 }
 
-export function useApiConfig() {
-  const [cfg, setCfg] = useState<ApiConfig>({ baseUrl: "/api" });
-  useEffect(() => {
-    setCfg(readConfig());
-    const handler = () => setCfg(readConfig());
-    window.addEventListener("health:config-changed", handler);
-    return () => window.removeEventListener("health:config-changed", handler);
-  }, []);
-  return cfg;
-}
-
-export function isMockMode(cfg: ApiConfig = readConfig()) {
-  return !cfg.baseUrl.trim();
+export function isMockMode(_cfg: ApiConfig = readConfig()) {
+  return false;
 }

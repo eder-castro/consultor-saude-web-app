@@ -123,7 +123,38 @@ for (const child of children) {
   });
 }
 
+// Cabeçalhos de segurança aplicados a todas as respostas (páginas, arquivos, API).
+// 'unsafe-inline' em script-src é necessário porque o TanStack Start injeta scripts
+// inline de hidratação; ainda assim a CSP bloqueia scripts de outros domínios e
+// impede que dados sejam enviados para fora (connect-src 'self').
+const contentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "media-src 'self' blob:",
+  "connect-src 'self'",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+const securityHeaders = {
+  "Content-Security-Policy": contentSecurityPolicy,
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()",
+  "Cross-Origin-Opener-Policy": "same-origin",
+};
+
 const server = http.createServer(async (request, response) => {
+  for (const [name, value] of Object.entries(securityHeaders)) response.setHeader(name, value);
   const isApi = request.url === "/api" || request.url?.startsWith("/api/");
 
   if (!backendReady || !frontendReady) {

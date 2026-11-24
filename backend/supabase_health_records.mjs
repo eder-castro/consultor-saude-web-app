@@ -2037,7 +2037,31 @@ async function createSession(connectors, payload) {
   return { ok: true };
 }
 
-function verifyPassword(password, encoded) {
+// Parâmetros atuais do scrypt (mesmos de backend/main.py: hash_password). Hashes antigos,
+// com N menor, continuam válidos e são recalculados no próximo login bem-sucedido.
+export const SCRYPT_N = 2 ** 16;
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
+const SCRYPT_MAXMEM = 256 * 1024 * 1024;
+// Hash descartável: quando o e-mail não existe, o login gasta o mesmo tempo de um e-mail
+// existente, sem revelar quais contas existem.
+const DUMMY_PASSWORD_HASH = `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${"00".repeat(16)}$${"00".repeat(64)}`;
+
+export function hashPassword(password) {
+  const salt = randomBytes(16);
+  const derived = scryptSync(String(password), salt, 64, {
+    N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P, maxmem: SCRYPT_MAXMEM,
+  });
+  return `scrypt$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${salt.toString("hex")}$${derived.toString("hex")}`;
+}
+
+export function passwordHashNeedsUpgrade(encoded) {
+  const [algorithm, nValue, rValue, pValue] = String(encoded).split("$");
+  return algorithm !== "scrypt" || Number(nValue) < SCRYPT_N
+    || Number(rValue) !== SCRYPT_R || Number(pValue) !== SCRYPT_P;
+}
+
+export function verifyPassword(password, encoded) {
   try {
     const [algorithm, nValue, rValue, pValue, saltHex, digestHex] = String(encoded).split("$");
     if (algorithm !== "scrypt") return false;
@@ -2046,6 +2070,7 @@ function verifyPassword(password, encoded) {
       N: Number(nValue),
       r: Number(rValue),
       p: Number(pValue),
+      maxmem: SCRYPT_MAXMEM,
     });
     return expected.length > 0 && timingSafeEqual(derived, expected);
   } catch {
@@ -2053,15 +2078,34 @@ function verifyPassword(password, encoded) {
   }
 }
 
+async function upgradePasswordHash(connectors, user, password) {
+  const params = new URLSearchParams({
+    id: `eq.${user.id}`,
+    password_hash: `eq.${user.password_hash}`,
+  });
+  await supabaseRequest(connectors, `/rest/v1/health_users?${params.toString()}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify({ password_hash: hashPassword(password) }),
+  });
+}
+
 async function authenticateAndCreateSession(connectors, payload) {
   const result = await userByEmail(connectors, payload.email);
   const user = result.user;
-  if (
-    !user?.id ||
-    typeof user.password_hash !== "string" ||
-    !verifyPassword(payload.password, user.password_hash)
-  ) {
+  if (!user?.id || typeof user.password_hash !== "string") {
+    verifyPassword(payload.password, DUMMY_PASSWORD_HASH);
     return { ok: true, authenticated: false };
+  }
+  if (!verifyPassword(payload.password, user.password_hash)) {
+    return { ok: true, authenticated: false };
+  }
+  if (passwordHashNeedsUpgrade(user.password_hash)) {
+    try {
+      await upgradePasswordHash(connectors, user, payload.password);
+    } catch {
+      // Não bloqueia o login: o hash antigo continua válido e será atualizado na próxima vez.
+    }
   }
   await createSession(connectors, {
     user_id: user.id,

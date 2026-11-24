@@ -62,7 +62,15 @@ EVENT_TYPES = ("alimentacao", "hidratacao", "exercicio", "sono", "peso", "outro"
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Consultor de Saúde API")
+# /docs e /openapi.json descrevem todas as rotas; ficam desligados a menos que
+# ENABLE_API_DOCS=true (use só em desenvolvimento).
+API_DOCS_ENABLED = os.environ.get("ENABLE_API_DOCS", "").lower() in {"1", "true", "yes"}
+app = FastAPI(
+    title="Consultor de Saúde API",
+    docs_url="/docs" if API_DOCS_ENABLED else None,
+    redoc_url="/redoc" if API_DOCS_ENABLED else None,
+    openapi_url="/openapi.json" if API_DOCS_ENABLED else None,
+)
 
 configured_origins = [
     origin.strip()
@@ -288,17 +296,26 @@ def invited_emails() -> set[str]:
     }
 
 
+# Mesmos parâmetros de backend/supabase_health_records.mjs (SCRYPT_N). Hashes antigos com
+# N=2**14 continuam válidos e são recalculados no próximo login.
+SCRYPT_N = 2**16
+SCRYPT_R = 8
+SCRYPT_P = 1
+SCRYPT_MAXMEM = 256 * 1024 * 1024
+
+
 def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     derived = hashlib.scrypt(
         password.encode("utf-8"),
         salt=salt,
-        n=2**14,
-        r=8,
-        p=1,
+        n=SCRYPT_N,
+        r=SCRYPT_R,
+        p=SCRYPT_P,
         dklen=64,
+        maxmem=SCRYPT_MAXMEM,
     )
-    return f"scrypt$16384$8$1${salt.hex()}${derived.hex()}"
+    return f"scrypt${SCRYPT_N}${SCRYPT_R}${SCRYPT_P}${salt.hex()}${derived.hex()}"
 
 
 def verify_password(password: str, encoded: str) -> bool:
@@ -313,6 +330,7 @@ def verify_password(password: str, encoded: str) -> bool:
             r=int(r_value),
             p=int(p_value),
             dklen=len(bytes.fromhex(digest_hex)),
+            maxmem=SCRYPT_MAXMEM,
         )
         return hmac.compare_digest(derived.hex(), digest_hex)
     except (ValueError, TypeError):
@@ -472,15 +490,86 @@ async def register_user(body: CredentialsRequest, response: Response) -> dict[st
     return await create_authenticated_session(user, response)
 
 
+# Limite de tentativas de login/cadastro, em memória por instância. O limite por e-mail
+# protege cada conta mesmo que o atacante troque de IP. O limite por cliente usa o primeiro
+# endereço do X-Forwarded-For, que pode ser falsificado, e por isso é só uma camada extra.
+AUTH_WINDOW_SECONDS = 15 * 60
+AUTH_MAX_FAILURES_PER_EMAIL = 5
+AUTH_MAX_FAILURES_PER_CLIENT = 20
+AUTH_MAX_TRACKED_KEYS = 10_000
+_auth_failures: dict[str, list[float]] = {}
+
+
+def auth_client_key(request: Request | None) -> str:
+    if request is None:
+        return "client:desconhecido"
+    forwarded = request.headers.get("x-forwarded-for", "")
+    address = forwarded.split(",")[0].strip() if forwarded else ""
+    if not address and request.client:
+        address = request.client.host
+    return f"client:{address or 'desconhecido'}"
+
+
+def _recent_auth_failures(key: str, now: float) -> list[float]:
+    recent = [at for at in _auth_failures.get(key, []) if now - at < AUTH_WINDOW_SECONDS]
+    if recent:
+        _auth_failures[key] = recent
+    else:
+        _auth_failures.pop(key, None)
+    return recent
+
+
+def enforce_auth_rate_limit(email: str, client_key: str) -> None:
+    now = time.monotonic()
+    retry_after = 0.0
+    for key, limit in ((f"email:{email}", AUTH_MAX_FAILURES_PER_EMAIL),
+                       (client_key, AUTH_MAX_FAILURES_PER_CLIENT)):
+        recent = _recent_auth_failures(key, now)
+        if len(recent) >= limit:
+            retry_after = max(retry_after, AUTH_WINDOW_SECONDS - (now - recent[0]))
+    if retry_after > 0:
+        minutes = max(1, math.ceil(retry_after / 60))
+        raise HTTPException(
+            status_code=429,
+            detail=f"Muitas tentativas. Tente novamente em {minutes} min.",
+            headers={"Retry-After": str(max(1, math.ceil(retry_after)))},
+        )
+
+
+def record_auth_failure(email: str, client_key: str) -> None:
+    now = time.monotonic()
+    if len(_auth_failures) >= AUTH_MAX_TRACKED_KEYS:
+        for key in list(_auth_failures):
+            _recent_auth_failures(key, now)
+        if len(_auth_failures) >= AUTH_MAX_TRACKED_KEYS:
+            _auth_failures.clear()
+    for key in (f"email:{email}", client_key):
+        _auth_failures.setdefault(key, []).append(now)
+
+
+def clear_auth_failures(email: str) -> None:
+    _auth_failures.pop(f"email:{email}", None)
+
+
 @app.post("/auth/register")
-async def auth_register(body: CredentialsRequest, response: Response):
-    return await register_user(body, response)
+async def auth_register(body: CredentialsRequest, response: Response, request: Request):
+    email = normalize_email(body.email)
+    client_key = auth_client_key(request)
+    enforce_auth_rate_limit(email, client_key)
+    try:
+        return await register_user(body, response)
+    except HTTPException as error:
+        if error.status_code in {403, 409}:
+            record_auth_failure(email, client_key)
+        raise
 
 
 @app.post("/auth/login")
-async def auth_login(body: CredentialsRequest, response: Response):
+async def auth_login(body: CredentialsRequest, response: Response, request: Request):
     started_at = time.monotonic()
     email = normalize_email(body.email)
+    client_key = auth_client_key(request)
+    enforce_auth_rate_limit(email, client_key)
     token, token_hash, expires_at = new_session()
     result = await run_supabase_helper(
         "authenticate-and-create-session",
@@ -493,7 +582,9 @@ async def auth_login(body: CredentialsRequest, response: Response):
     )
     user = result.get("user")
     if not result.get("authenticated") or not isinstance(user, dict) or not user.get("id"):
+        record_auth_failure(email, client_key)
         raise auth_error("E-mail ou senha inválidos.")
+    clear_auth_failures(email)
     set_session_cookie(response, token, expires_at)
     logger.info("Login concluído em %.3fs.", time.monotonic() - started_at)
     return {"id": user["id"], "email": user["email"]}
@@ -559,10 +650,12 @@ async def run_json_helper(
     try:
         result = json.loads(stdout.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
-        diagnostic = stderr.decode("utf-8", errors="replace").strip()
+        # O diagnóstico pode conter detalhes internos: fica só no log do servidor.
+        diagnostic = stderr.decode("utf-8", errors="replace").strip()[:500]
+        logger.error("%s helper returned invalid output: %s", connector_name, diagnostic)
         raise HTTPException(
             status_code=502,
-            detail=f"Resposta inválida do conector {connector_name}: {diagnostic}",
+            detail="Não foi possível acessar seus dados agora. Tente novamente em instantes.",
         ) from error
 
     if process.returncode != 0 or not result.get("ok", True):
@@ -594,6 +687,11 @@ async def run_json_helper(
             detail = "O armazenamento está temporariamente ocupado. Tente novamente em alguns segundos."
         elif connector_name == "Supabase" and error_code == "supabase_error" and status_code == 503:
             detail = "O armazenamento está temporariamente indisponível. Tente novamente em alguns segundos."
+        elif error_code in {"supabase_error", "connector_error", "unexpected_error"}:
+            # Mensagens cruas do Supabase revelam tabelas, colunas e restrições internas.
+            # O status vai para o log (acima); o navegador recebe uma mensagem genérica.
+            status_code = 502
+            detail = "Não foi possível acessar seus dados agora. Tente novamente em instantes."
         raise HTTPException(
             status_code=status_code,
             detail=detail,
@@ -1750,7 +1848,7 @@ def call_gemini_sync(payload: dict[str, Any], models: list[str] | None = None) -
         request_body = json.dumps(model_payload).encode("utf-8")
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{model}:generateContent?key={GEMINI_API_KEY}"
+            f"{model}:generateContent"
         )
         for attempt in range(3):
             if model_index > 0 or attempt > 0:
@@ -1758,7 +1856,9 @@ def call_gemini_sync(payload: dict[str, Any], models: list[str] | None = None) -
             request = urllib.request.Request(
                 url,
                 data=request_body,
-                headers={"Content-Type": "application/json"},
+                # A chave vai no cabeçalho, não na URL: URLs costumam aparecer em logs,
+                # tracebacks e ferramentas de rede; cabeçalhos não.
+                headers={"Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY},
                 method="POST",
             )
             try:
