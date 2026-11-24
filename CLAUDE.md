@@ -49,16 +49,29 @@ e publica. Há um plano de, no futuro, sair do Replit (ver ROADMAP). Antes de co
   read-modify-write no JS.
 - Modelos do Gemini são configuráveis por variável de ambiente; não fixe nomes no código.
 - Não guarde os bytes originais das fotos no histórico do chat.
-- `vite.config.ts` usa `@lovable.dev/vite-tanstack-config`, que já inclui os plugins principais. Não os duplique.
+- `vite.config.ts` é explícito (tailwind, tsconfig-paths, tanstackStart com entrada `src/server.ts`,
+  nitro com preset `bun` só no build, react). Mantenha as exclusões do watcher.
 - Commits no estilo Conventional Commits (`feat:`, `fix(chat):`, …).
+
+## Arquivo morto
+
+`_arquivo/` guarda o que saiu na faxina (componentes shadcn sem uso, prints).
+Nada ali é usado. Não importe dessa pasta; se algo precisar voltar, use `git mv` (ver `_arquivo/README.md`).
 
 ## Armadilhas
 
 - Fora do Replit o conector Supabase não funciona: login e gravação falham localmente.
-- Cada operação de dados cria um processo Node, o que adiciona latência. O cold start publicado
+- Todas as operações de dados passam por um lock global (`storage_requests.py`) e cada uma cria
+  um processo `bun`, o que adiciona latência. A validação de sessão tem cache de 60 s em memória
+  (`_session_cache` em `main.py`); o logout invalida a entrada.
+- Rodar os testes Python localmente: `.venv/bin/python -m unittest discover -s backend -p 'test_*.py'`. O cold start publicado
   já chegou a 50–110 s (`docs/startup-measurements.md`).
 - `src/lib/mock-store.ts` e o modo mock ainda existem, mas a base padrão é `/api`, então o mock só
   é usado se a URL for apagada.
-- Existem `bun.lock` e `package-lock.json`. O Replit usa Bun (`post-merge.sh` roda `bun install --frozen-lockfile`).
-- `wrangler.jsonc`/Cloudflare vêm do template e não são usados no deploy atual.
+- Gerenciador de pacotes: **Bun** (`bun.lock`). O `post-merge.sh` do Replit roda `bun install --frozen-lockfile`,
+  então sempre commite o `bun.lock` junto com o `package.json`.
+- Não use o `overrides` do package.json para forçar uma versão em todo o projeto: o Bun aplica
+  overrides de forma global. Foi isso que quebrou o ESLint (`brace-expansion` 5 no `minimatch` 3).
+- `scripts/production-server.test.mjs` depende de DNS reverso rápido para `127.0.0.1`
+  (o `HTTPServer` do Python chama `getfqdn`). Em máquinas com DNS lento, ele estoura o tempo.
 - Fuso de referência: `America/Sao_Paulo`. Cuidado com datas "do dia".

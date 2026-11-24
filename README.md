@@ -54,7 +54,7 @@ Vite dev server :5000  ── proxy /api ──►  FastAPI :8000 (backend/main.
 | Dados     | Supabase (Postgres + RLS), acessado pelo `@replit/connectors-sdk` em Node |
 | Testes    | `unittest` (Python), `bun test` (JS/TS), integração com Postgres real |
 | Infra     | Replit (deploy autoscale), Bun |
-| Origem    | Template Lovable/TanStack Start (`.lovable/plan.md`), evoluído no Replit |
+| Origem    | Template TanStack Start do Lovable, evoluído no Replit (tag `replit-final`) e agora desenvolvido localmente |
 
 ## Rodando
 

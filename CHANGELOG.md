@@ -10,6 +10,14 @@ Mudanças relevantes, agrupadas por período. Formato inspirado em
 
 ### Alterado
 - O desenvolvimento passa a ser feito localmente com Claude Code; o Replit fica só para publicação.
+- Faxina: 37 arquivos de código sem uso e assets movidos para `_arquivo/`; 32 dependências removidas.
+- Configuração do Vite própria, sem `@lovable.dev/vite-tanstack-config` nem Cloudflare; o servidor
+  de produção agora é gerado com o preset `bun` do Nitro.
+- `bun.lock` independente dos espelhos internos do Replit.
+- Validação de sessão com cache de 60 s em memória (menos chamadas ao Supabase por requisição).
+
+### Corrigido
+- ESLint voltou a funcionar (override global de `brace-expansion` quebrava o `minimatch` 3).
 
 ## [replit-final] — 2026-11-24
 
