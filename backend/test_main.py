@@ -723,6 +723,64 @@ class AuthenticationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["token_hash"], main.hash_session_token("session-token-for-test"))
         self.assertNotIn("session-token-for-test", json.dumps(payload))
 
+    async def test_valid_session_is_cached_so_repeat_requests_skip_storage(self) -> None:
+        main._session_cache.clear()
+        user = {"id": "user-1", "email": "pessoa@exemplo.com"}
+        helper = AsyncMock(return_value={"ok": True, "user": user})
+
+        with patch.object(main, "run_supabase_helper", new=helper):
+            first = await main.current_user(MagicMock(), "token-cache")
+            second = await main.current_user(MagicMock(), "token-cache")
+
+        self.assertEqual(first, user)
+        self.assertEqual(second, user)
+        self.assertEqual(helper.await_count, 1)
+        main._session_cache.clear()
+
+    async def test_invalid_session_is_not_cached(self) -> None:
+        main._session_cache.clear()
+        helper = AsyncMock(return_value={"ok": True, "user": None})
+
+        with patch.object(main, "run_supabase_helper", new=helper):
+            for _ in range(2):
+                with self.assertRaises(HTTPException):
+                    await main.current_user(MagicMock(), "token-invalido")
+
+        self.assertEqual(helper.await_count, 2)
+        self.assertEqual(main._session_cache, {})
+
+    async def test_expired_cache_entry_checks_storage_again(self) -> None:
+        main._session_cache.clear()
+        user = {"id": "user-1", "email": "pessoa@exemplo.com"}
+        helper = AsyncMock(return_value={"ok": True, "user": user})
+
+        with patch.object(main, "run_supabase_helper", new=helper):
+            await main.current_user(MagicMock(), "token-expira")
+            token_hash = main.hash_session_token("token-expira")
+            main._session_cache[token_hash] = (main.time.monotonic() - 1, user)
+            await main.current_user(MagicMock(), "token-expira")
+
+        self.assertEqual(helper.await_count, 2)
+        main._session_cache.clear()
+
+    async def test_logout_drops_cached_session_before_revoking(self) -> None:
+        main._session_cache.clear()
+        user = {"id": "user-1", "email": "pessoa@exemplo.com"}
+        helper = AsyncMock(return_value={"ok": True, "user": user})
+
+        with patch.object(main, "run_supabase_helper", new=helper):
+            await main.current_user(MagicMock(), "token-logout")
+            await main.auth_logout(Response(), "token-logout")
+            helper.return_value = {"ok": True, "user": None}
+            with self.assertRaises(HTTPException) as captured:
+                await main.current_user(MagicMock(), "token-logout")
+
+        self.assertEqual(captured.exception.status_code, 401)
+        self.assertEqual(
+            [call.args[0] for call in helper.await_args_list],
+            ["session-user", "revoke-session", "session-user"],
+        )
+
     async def test_owner_registration_requires_administrative_activation(self) -> None:
         helper = AsyncMock()
         with (

@@ -338,6 +338,42 @@ def auth_error(detail: str = "Sessão ausente ou expirada.") -> HTTPException:
     )
 
 
+# Sessões válidas ficam em memória por pouco tempo. Sem isso, cada requisição autenticada
+# gastava um processo Bun e duas consultas ao Supabase só para validar o cookie, na mesma
+# fila serializada das operações de dados. Logout invalida a entrada na hora; em outra
+# instância do autoscale, uma sessão revogada pode durar no máximo o TTL.
+SESSION_CACHE_TTL_SECONDS = float(os.environ.get("SESSION_CACHE_TTL_SECONDS", "60"))
+SESSION_CACHE_MAX_ENTRIES = 1_000
+_session_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+
+
+def cached_session_user(token_hash: str) -> dict[str, Any] | None:
+    entry = _session_cache.get(token_hash)
+    if entry is None:
+        return None
+    expires_at, user = entry
+    if expires_at <= time.monotonic():
+        _session_cache.pop(token_hash, None)
+        return None
+    return user
+
+
+def remember_session_user(token_hash: str, user: dict[str, Any]) -> None:
+    if SESSION_CACHE_TTL_SECONDS <= 0:
+        return
+    now = time.monotonic()
+    if len(_session_cache) >= SESSION_CACHE_MAX_ENTRIES:
+        for key in [key for key, (expires_at, _) in _session_cache.items() if expires_at <= now]:
+            del _session_cache[key]
+        if len(_session_cache) >= SESSION_CACHE_MAX_ENTRIES:
+            _session_cache.clear()
+    _session_cache[token_hash] = (now + SESSION_CACHE_TTL_SECONDS, user)
+
+
+def forget_session_user(token_hash: str) -> None:
+    _session_cache.pop(token_hash, None)
+
+
 async def current_user(
     request: Request,
     session_cookie: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
@@ -345,13 +381,17 @@ async def current_user(
     if not session_cookie:
         raise auth_error()
 
-    result = await run_supabase_helper(
-        "session-user",
-        payload={"token_hash": hash_session_token(session_cookie)},
-    )
-    user = result.get("user")
-    if not isinstance(user, dict) or not user.get("id") or not user.get("email"):
-        raise auth_error()
+    token_hash = hash_session_token(session_cookie)
+    user = cached_session_user(token_hash)
+    if user is None:
+        result = await run_supabase_helper(
+            "session-user",
+            payload={"token_hash": token_hash},
+        )
+        user = result.get("user")
+        if not isinstance(user, dict) or not user.get("id") or not user.get("email"):
+            raise auth_error()
+        remember_session_user(token_hash, user)
     request.state.user = user
     return user
 
@@ -470,9 +510,11 @@ async def auth_logout(
     session_cookie: Annotated[str | None, Cookie(alias=SESSION_COOKIE_NAME)] = None,
 ):
     if session_cookie:
+        token_hash = hash_session_token(session_cookie)
+        forget_session_user(token_hash)
         await run_supabase_helper(
             "revoke-session",
-            payload={"token_hash": hash_session_token(session_cookie)},
+            payload={"token_hash": token_hash},
         )
     response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
     return {"ok": True}
