@@ -2035,6 +2035,7 @@ async def analyze_with_gemini(
                 error.detail,
             )
 
+    portion_warnings: list[str] = []
     missing_portions = food_items_needing_portions(parsed.grupos) if image_parts else []
     if missing_portions:
         report_progress("refining_analysis")
@@ -2058,11 +2059,21 @@ async def analyze_with_gemini(
         response = await asyncio.to_thread(call_gemini_sync, refinement_payload)
         report_progress("checking_result")
         parsed = parse_gemini_payload(response)
-        if food_items_needing_portions(parsed.grupos):
-            raise HTTPException(
-                status_code=502,
-                detail="A análise da foto não retornou quantidades concretas para os alimentos. "
-                "Tente novamente com uma foto que mostre o prato inteiro.",
+        still_missing = set(food_items_needing_portions(parsed.grupos))
+        if still_missing:
+            # Não inventa porção e não descarta a análise inteira: os itens vagos vão para
+            # o card como "não informado", desmarcados, para o usuário preencher.
+            for group in parsed.grupos:
+                if group.evento_tipo != "alimentacao":
+                    continue
+                for item in group.itens:
+                    if item.item in still_missing:
+                        item.quantidade_estimada = "não informado"
+                        item.confirmado = False
+            parsed.precisa_revisao = True
+            portion_warnings.append(
+                "Não consegui estimar a quantidade de: " + ", ".join(sorted(still_missing))
+                + ". Preencha a quantidade desses itens antes de confirmar."
             )
 
     missing_phases = sleep_sessions(parsed.grupos) if image_parts else []
@@ -2122,6 +2133,7 @@ async def analyze_with_gemini(
     sleep_warnings = sleep_photo_warnings(parsed.grupos) if image_parts else []
     if image_parts and any(group.evento_tipo == "sono" and not group.data_imagem for group in parsed.grupos):
         sleep_warnings.append("Não foi possível conferir a data do sono na imagem. Confira a data do registro antes de confirmar.")
+    extraction_warnings = [*portion_warnings, *sleep_warnings]
     image_dates = {
         (group.evento_tipo, group.data, group.horario): group.data_imagem
         for group in parsed.grupos if group.data_imagem
@@ -2214,7 +2226,7 @@ async def analyze_with_gemini(
             for (evento_tipo, event_date, event_time), itens in normalized_groups.items()
         ],
         **({"resumo": summary} if summary else {}),
-        **({"avisos_extracao": sleep_warnings} if sleep_warnings else {}),
+        **({"avisos_extracao": extraction_warnings} if extraction_warnings else {}),
     }
 
 

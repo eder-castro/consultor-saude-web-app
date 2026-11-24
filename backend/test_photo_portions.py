@@ -1,8 +1,6 @@
 import unittest
 from unittest.mock import patch
 
-from fastapi import HTTPException
-
 from backend import main
 from backend.photo_portions import has_concrete_portion
 from backend.test_main import gemini_response
@@ -58,16 +56,24 @@ class PhotoPortionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertTrue(all(not item["confirmado"] for item in result["grupos"][0]["itens"]))
 
-    async def test_repeated_placeholder_fails_without_inventing_quantities(self):
-        response = meal_response([("Feijão", "porção visualmente estimada")])
+    async def test_repeated_placeholder_goes_to_review_without_inventing_quantities(self):
+        response = meal_response([
+            ("Feijão", "porção visualmente estimada"),
+            ("Arroz", "aprox. 3 colheres de sopa"),
+        ])
         with patch.object(main, "GEMINI_API_KEY", "test-only"), \
                 patch.object(main, "call_gemini_sync", return_value=response) as model:
-            with self.assertRaises(HTTPException) as caught:
-                await main.analyze_with_gemini(
-                    main.ProcessInputRequest(image_base64="aGVsbG8=", mime_type="image/png"),
-                )
+            result = await main.analyze_with_gemini(
+                main.ProcessInputRequest(image_base64="aGVsbG8=", mime_type="image/png"),
+            )
         self.assertEqual(model.call_count, 2)
-        self.assertEqual(caught.exception.status_code, 502)
+        items = {item["item"]: item for item in result["grupos"][0]["itens"]}
+        self.assertEqual(items["Feijão"]["quantidade_estimada"], "não informado")
+        self.assertFalse(items["Feijão"]["confirmado"])
+        self.assertEqual(items["Arroz"]["quantidade_estimada"], "aprox. 3 colheres de sopa")
+        self.assertEqual(len(result["avisos_extracao"]), 1)
+        self.assertIn("Feijão", result["avisos_extracao"][0])
+        self.assertNotIn("Arroz", result["avisos_extracao"][0])
 
     async def test_concrete_photo_portions_do_not_need_an_extra_request(self):
         with patch.object(main, "GEMINI_API_KEY", "test-only"), \

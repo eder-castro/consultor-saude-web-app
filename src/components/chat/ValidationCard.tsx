@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExerciseReview } from "@/components/chat/ExerciseReview";
-import { ApiError, saveRecords } from "@/lib/api";
+import { ApiError, getApiErrorMessage, saveRecords } from "@/lib/api";
 import { useSleepConflictReview } from "./useSleepConflictReview";
 import {
   ExercicioDetailsSchema,
@@ -236,7 +236,7 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
       onResolved("saved", selectedGroups, saved.record_refs);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) sleepReview.refresh();
-      const message = e instanceof Error ? e.message : "Falha ao salvar.";
+      const message = getApiErrorMessage(e);
       setSaveError(message);
       toast.error(message);
     } finally {
