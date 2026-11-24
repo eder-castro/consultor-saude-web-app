@@ -95,6 +95,8 @@ pip install -r backend/requirements.txt && python -m uvicorn backend.main:app --
 | `SESSION_SECRET` | Segredo usado pelo helper Node (criptografia/assinatura de sessão) |
 | `INVITED_EMAILS` | Lista de e-mails autorizados a se cadastrar (separados por vírgula) |
 | `PRIMARY_OWNER_EMAIL`, `PRIMARY_OWNER_INITIAL_PASSWORD` | Conta dona principal (bootstrap) |
+| `SESSION_CACHE_TTL_SECONDS` | Tempo do cache de sessão em memória (padrão 60) |
+| `ENABLE_API_DOCS` | `true` liga `/docs` e `/openapi.json` (só para desenvolvimento) |
 | `CORS_ORIGINS` | Origens permitidas (padrão: localhost:5000 + domínio de dev do Replit) |
 | `COOKIE_SECURE` | Força o cookie `Secure` |
 | `PORT`, `FRONTEND_INTERNAL_PORT`, `BACKEND_INTERNAL_PORT` | Portas do servidor de produção |

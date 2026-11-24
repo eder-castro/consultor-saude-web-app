@@ -33,6 +33,18 @@ abaixo tratam de robustez, manutenção e evolução.
   Supabase (URL + service key), mover os Secrets e escolher a nova hospedagem (ex.: Fly.io,
   Render ou Railway para FastAPI + frontend).
 
+## 🔐 Segurança (pendências após a auditoria de nov/2026)
+
+- [ ] **Tornar o repositório privado** no GitHub: hoje ele é público e expõe o e-mail da conta
+  principal e prints pessoais no histórico.
+- [ ] Ativar verificação em duas etapas (2FA) no GitHub, Replit, Google e Supabase.
+- [ ] Atualizar para o Vite 8 e o TanStack Start mais recente (as versões 1.169+ exigem Vite 8).
+- [ ] Migrar `zod` 3 para 4 (o alerta de memória só tem correção na v4; o risco aqui é baixo,
+  porque o zod só valida respostas da própria API).
+- [ ] CSP sem `'unsafe-inline'` em scripts (exige nonce no SSR do TanStack Start).
+- [ ] Limite de tentativas compartilhado entre instâncias do autoscale (hoje fica em memória, por instância).
+- [ ] "Sair de todos os dispositivos" e sessões com duração menor que 30 dias.
+
 ## 🟡 Arquitetura e manutenção
 
 - [ ] Quebrar `backend/main.py` (~2.200 linhas) em routers FastAPI (`auth`, `capture`, `meals`,

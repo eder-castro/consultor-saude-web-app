@@ -2,10 +2,12 @@
 
 FastAPI em `backend/main.py`. No navegador, todas as rotas são chamadas com o prefixo `/api`:
 o proxy do Vite (dev) ou `scripts/production-server.mjs` (produção) remove o prefixo e
-encaminha para a porta 8000. Com o backend rodando, a documentação interativa fica em
-`http://localhost:8000/docs`.
+encaminha para a porta 8000. A documentação interativa (`http://localhost:8000/docs`) só fica
+ligada com `ENABLE_API_DOCS=true`. Ela vem desligada por padrão para não expor as rotas em produção.
 
 - **Autenticação**: cookie HTTP-only `health_session` (30 dias), criado em `/auth/login`.
+  Login e cadastro têm limite de tentativas: 5 falhas por e-mail e 20 por cliente a cada
+  15 min. Depois disso, a resposta é `429` com `Retry-After`.
   Quase todas as rotas exigem sessão válida.
 - **Contrato no frontend**: `src/lib/api.ts` (chamadas) e `src/lib/api-schemas.ts` (Zod).
   Toda resposta é validada; se o backend divergir, o erro aparece na UI.

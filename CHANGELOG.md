@@ -18,6 +18,24 @@ Mudanças relevantes, agrupadas por período. Formato inspirado em
 
 ### Corrigido
 - ESLint voltou a funcionar (override global de `brace-expansion` quebrava o `minimatch` 3).
+- Foto de refeição em que a IA não estima a porção de algum alimento não descarta mais a
+  análise inteira: o item vem como "não informado", desmarcado, com aviso no card para o
+  usuário preencher a quantidade.
+- Falha de conexão ao salvar o card mostra mensagem amigável em vez de "Failed to fetch".
+
+### Segurança
+- TanStack Start atualizado para 1.168.61 (corrige XSS crítico em respostas de server functions);
+  `seroval` 1.6.11; 38 alertas de dependências corrigidos.
+- Limite de tentativas no login e no cadastro: 5 falhas por e-mail e 20 por cliente a cada 15 min.
+- Login com tempo constante quando o e-mail não existe (não revela quais contas existem).
+- Scrypt mais forte (N=2^16); hashes antigos são recalculados no próximo login.
+- Chave do Gemini enviada no cabeçalho `x-goog-api-key`, não mais na URL.
+- Erros internos do Supabase e do helper não chegam mais ao navegador (só ao log).
+- `/docs` e `/openapi.json` desligados por padrão (`ENABLE_API_DOCS=true` para ligar).
+- Cabeçalhos de segurança em todas as respostas: CSP, `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`.
+- URL da API fixa em `/api` (não pode mais ser trocada pelo `localStorage`).
+- Versões Python fixadas em `backend/requirements.txt`.
 
 ## [replit-final] — 2026-11-24
 

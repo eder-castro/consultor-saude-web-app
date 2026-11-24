@@ -58,6 +58,18 @@ e publica. Há um plano de, no futuro, sair do Replit (ver ROADMAP). Antes de co
 `_arquivo/` guarda o que saiu na faxina (componentes shadcn sem uso, prints).
 Nada ali é usado. Não importe dessa pasta; se algo precisar voltar, use `git mv` (ver `_arquivo/README.md`).
 
+## Segurança (decisões tomadas)
+
+- Login/cadastro: limite em memória (`enforce_auth_rate_limit` em `main.py`), 5 falhas/e-mail e
+  20/cliente em 15 min. Só respostas "senha errada" contam como falha.
+- Scrypt N=2^16 nos dois lados (`hash_password` no Python e `hashPassword` no helper Node).
+  Mudou os parâmetros? Mude nos dois lugares; hashes antigos são recalculados no login.
+- Mensagens de erro do Supabase/helper nunca vão para o cliente; use mensagens próprias em
+  `SupabaseRecordsError` quando o usuário precisa saber o motivo.
+- CSP e outros cabeçalhos ficam em `scripts/production-server.mjs`. Nova origem externa
+  (fonte, imagem, API)? Precisa entrar na CSP, senão o navegador bloqueia.
+- A chave do Gemini vai no cabeçalho `x-goog-api-key`; nunca em URL ou log.
+
 ## Armadilhas
 
 - Fora do Replit o conector Supabase não funciona: login e gravação falham localmente.
