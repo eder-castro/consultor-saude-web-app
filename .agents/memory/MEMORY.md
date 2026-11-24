@@ -1,8 +1,9 @@
 - [Python connector bridge](python-connector-bridge.md) — Python connector package is unavailable here; keep OAuth handling in the official JavaScript SDK bridge.
 - [Gemini model lifecycle](gemini-api-model-lifecycle.md) — Keep model selection configurable; provider model availability changes and transient capacity errors need backoff.
-- [Vite hydration stability](vite-hydration-stability.md) — Ignore Bun cache churn; suppress hydration only on fields mutated by Replit browser tooling.
+- [Weight chart periods](weight-chart-behavior.md) — Open on the last seven days; day, month and year are selectable alternatives, with a minimum 5 kg vertical span.
+- [Vite preview stability](vite-hydration-stability.md) — Ignore cache churn; use Node for native Vite crashes; suppress hydration only on tooling-mutated fields.
 - [Supabase connector RLS](supabase-connector-rls.md) — The connector reaches PostgREST as anon; backend-only tables need RLS gated by a server-held request credential.
-- [Persistent chat history](persistent-chat-history.md) — Keep owner-scoped chat across reloads without persisting original uploaded image bytes.
+- [Persistent chat history](persistent-chat-history.md) — Keep owner-scoped chat without media bytes; temporary encrypted retry storage is a separate, consented exception.
 - [PostgreSQL integration daemons](postgres-integration-daemons.md) — Redirect daemon logs and pin the cluster user in Bun-owned PostgreSQL tests.
 - [Development watch boundaries](development-watch-boundaries.md) — Ignore Replit internal directories; reload storms can split SSR context modules.
 - [Supabase connector throttling](supabase-connector-throttling.md) — Pace context reads and retry safe requests; the connector enforces a per-Repl request ceiling.
@@ -10,3 +11,13 @@
 - [Sleep phase preservation](sleep-phase-preservation.md) — Keep sleep stages alongside the consolidated total so weekly views can explain sleep composition.
 - [Bun transitive overrides](bun-transitive-overrides.md) — Bun ignores nested overrides; use flat safe resolutions and validate older consumers.
 - [GitHub push authentication](github-push-authentication.md) — OAuth API access may work while Replit Git askpass stays invalid; verify both paths before retrying pushes.
+- [AI outage and data integrity](ai-outage-data-integrity.md) — only unambiguous numeric text bypasses AI; preserve uncertain meal text as a reviewable draft, not an invented analysis.
+- [Autoscale startup readiness](autoscale-startup-readiness.md) — the public proxy can start minutes before Python in production; never expose an apparently usable app before both services are ready.
+- [Corrections to health records](health-record-corrections.md) — follow-up text must not silently become a new meal; target an owned saved row and require explicit review before updating.
+- [Confirmed-record and period analysis](confirmed-record-analysis.md) — explicit consultations are read-only; “último mês” is rolling 30 days, distinct from fixed post-save context.
+- [Declared daily water totals](declared-daily-water-totals.md) — treat a claimed daily total as a reconciliation point, not another drink; backdated totals cover the entire stated day.
+- [Bun component test DOM](bun-component-test-dom.md) — UI suites can pass alone yet fail together if each replaces the document after Testing Library initializes.
+- [Analysis loading](analysis-loading-progress.md) — Show real stages; use the reference-inspired segmented wheel and text-colored hamster silhouette, without skeleton or delay.
+- [Photo portion estimates](photo-portion-estimates.md) — Estimate each visible food with a concrete quantity, not repeated generic uncertainty text or fixed defaults.
+- [Exercise screenshot evidence](exercise-screenshot-evidence.md) — Preserve verbose pace/split text separately; magnify source headers before diagnosing OCR errors.
+- [Python async test doubles](python-async-test-doubles.md) — Exhausted mock iterators inside asyncio.to_thread can hang the test instead of failing.

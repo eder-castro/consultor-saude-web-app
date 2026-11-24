@@ -1,0 +1,44 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "kkPj4KdMLoj1Q_5InxMgo"
+uri = "file://public/previews/loading.html"
+type = "html"
+title = "Prévia — pernas curtas e movimento na curva da roda"
+description = "Corpo do mesmo tamanho, pernas menores com passadas mais suaves e oscilação para frente e para trás acompanhando o formato circular. Você pode repetir ou pausar a animação."
+logical_id = "7ca8482f-e5fa-4415-aef9-c27e3bf1b750"
+content_hash = "sha256:b552443f27107cf57e68587e0b02f8addf738fdc8bd2c1093ce2be018429865b"
+size = 13523
+mtime_ms = 1790903012086
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:d5ea0faf-259e-4f90-8db5-b65e6ee2e8cc/7ca8482f-e5fa-4415-aef9-c27e3bf1b750/727c919c-7896-41fc-95d5-b11fb0cf6621"
+storage_version_token = "1790903036429527"
+content_type = "text/html"
+
+[[outputs]]
+id = "13dntTPP5pQNJKCADE3jd"
+uri = "file://generated-artifacts/hamster-preview.mp4"
+type = "video"
+title = "Hamster saindo da rodinha e explorando a tela"
+description = "Gravação da animação real em formato de celular. Nesta demonstração, ele sai após 3 segundos; no app, após 20 segundos de espera."
+logical_id = "6012c982-2a94-4f22-93a8-7f8c55df8ee1"
+content_hash = "sha256:7f36a1dc53cab76a34b8582fcb3233c5f30fc0d46dbe3cd31440e127a7d0e351"
+size = 126025
+mtime_ms = 1793758524757
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:d5ea0faf-259e-4f90-8db5-b65e6ee2e8cc/6012c982-2a94-4f22-93a8-7f8c55df8ee1/f5ebd411-7b09-4b88-be04-fa525e58342d"
+storage_version_token = "1793758539052522"
+content_type = "video/mp4"
+
+[[outputs]]
+id = "A0H-PR4ucBLZorh9BRoAG"
+uri = "file://generated-artifacts/hamster-preview.html"
+type = "html"
+title = "Prévia interativa do hamster"
+description = "Abra para assistir ao passeio, recomeçar a animação ou simular a chegada da resposta. Demonstração independente, sem usar seus dados."
+logical_id = "367dfb82-2ed7-4114-a0ba-38d2dc8cfc04"
+content_hash = "sha256:5fa893a5daeb8f2cfc0d2af047d64320b37d4a0a514ff386bebe3e4f762f2454"
+size = 206166
+mtime_ms = 1793758498164
+storage_uri = "gcs://replit-rams-assets-riker/rams/assets/repl:d5ea0faf-259e-4f90-8db5-b65e6ee2e8cc/367dfb82-2ed7-4114-a0ba-38d2dc8cfc04/dd408e71-9c74-4c2b-abcc-c9f1f54eddb1"
+storage_version_token = "1793758539720013"
+content_type = "text/html"
