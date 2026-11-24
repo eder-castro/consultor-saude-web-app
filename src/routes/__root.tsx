@@ -12,6 +12,7 @@ import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { ChatProvider } from "@/providers/ChatProvider";
+import { ComposerDraftProvider } from "@/providers/ComposerDraftProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 import { useTheme } from "@/providers/theme-context";
 
@@ -128,10 +129,12 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <AuthProvider>
-          <ChatProvider>
-            <Outlet />
-            <ThemedToaster />
-          </ChatProvider>
+          <ComposerDraftProvider>
+            <ChatProvider>
+              <Outlet />
+              <ThemedToaster />
+            </ChatProvider>
+          </ComposerDraftProvider>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

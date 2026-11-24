@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" class="hamster-wheel__illustration" viewBox="0 0 176 164" role="presentation" focusable="false">
+  <g class="hamster-wheel__frame">
+    <circle class="hamster-wheel__rim" cx="88" cy="78" r="62" pathLength="360" stroke-dasharray="27 3" />
+    <path class="hamster-wheel__stand" d="M57 132 47 149M119 132 129 149" />
+    <path class="hamster-wheel__base" d="M41 149h94" />
+  </g>
+  <g class="hamster-wheel__travel">
+    <g class="hamster-wheel__track-contact" transform="translate(0 4)">
+      <g class="hamster-wheel__runner">
+        <path class="hamster-wheel__leg hamster-wheel__leg--back" d="M80 125q-3 5-8 5M83 126q-2 5-7 4" />
+        <path class="hamster-wheel__leg hamster-wheel__leg--front" d="M103 123q2 5 8 5M106 123q3 1 6 0" />
+        <path class="hamster-wheel__body" fill-rule="evenodd" d="M71 113c4-7 10-8 17-8 5 0 10 1 15-2v-2c-3-4-1-7 3-5l3 3c8 0 14 6 17 12-1 4-5 5-10 7-5 2-6 4-2 5h2c2 0 3 2 1 3-2-1-4-1-6-1s-7-1-10-1c-8 5-19 7-26 3l-5-1c-3 0-4-2-3-6l2-1c-2-1-2-3-4-6 4 3 6 3 6 0Z M117 105.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3Z" />
+      </g>
+    </g>
+  </g>
+</svg>

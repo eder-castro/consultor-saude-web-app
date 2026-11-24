@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, LockKeyhole, Sparkles } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, LockKeyhole, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/providers/auth-context";
@@ -21,6 +21,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -39,7 +40,6 @@ function LoginPage() {
     setBusy(true);
     try {
       await login({ email, password });
-      await navigate({ to: "/" });
     } catch (e) {
       setError(authMessage(e));
     } finally {
@@ -100,17 +100,29 @@ function LoginPage() {
             </label>
             <label className="block text-sm font-medium">
               Senha
-              <Input
-                data-testid="input-password"
-                suppressHydrationWarning
-                className="mt-2 h-11 bg-background"
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="mínimo de 8 caracteres"
-                minLength={8}
-              />
+              <div className="relative mt-2">
+                <Input
+                  data-testid="input-password"
+                  suppressHydrationWarning
+                  className="h-11 bg-background pr-11"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="mínimo de 8 caracteres"
+                  minLength={8}
+                />
+                <button
+                  type="button"
+                  data-testid="button-toggle-password"
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                  aria-pressed={showPassword}
+                  className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-md text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                </button>
+              </div>
             </label>
           </div>
           {error && (

@@ -5,7 +5,7 @@ stack = "BEST_EFFORT_FALLBACK"
 
 [nix]
 channel = "stable-25_05"
-packages = ["glibcLocales"]
+packages = ["glibcLocales", "nodejs_22"]
 
 [workflows]
 runButton = "Project"
@@ -27,13 +27,13 @@ args = "Backend API"
 name = "Start application"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "bun run dev"
-waitForPort = 5000
-
 [workflows.workflow.metadata]
 outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node node_modules/vite/bin/vite.js dev"
+waitForPort = 5000
 
 [[workflows.workflow]]
 name = "Backend API"
@@ -56,13 +56,21 @@ localPort = 5001
 externalPort = 3001
 
 [[ports]]
+localPort = 5050
+externalPort = 3000
+
+[[ports]]
+localPort = 5051
+externalPort = 3002
+
+[[ports]]
 localPort = 8000
 externalPort = 8000
 
 [deployment]
-deploymentTarget = "static"
+deploymentTarget = "autoscale"
 build = ["bun", "run", "build"]
-publicDir = "dist"
+run = ["bun", "run", "start"]
 
 [postMerge]
 path = "scripts/post-merge.sh"

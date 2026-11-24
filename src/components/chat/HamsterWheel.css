@@ -1,0 +1,107 @@
+.hamster-wheel {
+  display: block;
+  flex: 0 0 9.5rem;
+  width: 9.5rem;
+  height: 6.8rem;
+  overflow: hidden;
+  color: var(--analysis-muted, var(--muted-foreground, currentColor));
+}
+
+.hamster-wheel__illustration {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hamster-wheel__rim {
+  stroke-linecap: butt;
+  transform-origin: 88px 78px;
+  animation: hamster-wheel-turn 2.8s linear infinite;
+}
+
+.hamster-wheel__travel {
+  transform-box: view-box;
+  transform-origin: 88px 78px;
+  animation: hamster-track-travel 4.8s ease-in-out infinite;
+}
+
+.hamster-wheel--hamster-away .hamster-wheel__travel {
+  visibility: hidden;
+  animation-play-state: paused;
+}
+
+.hamster-wheel--hamster-away .hamster-wheel__travel * {
+  animation-play-state: paused;
+}
+
+.hamster-wheel__runner {
+  animation: hamster-run-bob 0.22s ease-in-out infinite alternate;
+}
+
+.hamster-wheel__body {
+  fill: currentColor;
+  stroke: none;
+}
+
+.hamster-wheel__leg {
+  transform-origin: 80px 125px;
+  animation: hamster-leg-run 0.22s ease-in-out infinite alternate;
+}
+
+.hamster-wheel__leg--front {
+  transform-origin: 104px 123px;
+  animation-delay: -0.22s;
+}
+
+.hamster-wheel--compact {
+  flex-basis: 6.8rem;
+  width: 6.8rem;
+  height: 4.9rem;
+}
+
+@keyframes hamster-wheel-turn {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes hamster-run-bob {
+  from { transform: translateY(0.4px); }
+  to { transform: translateY(-0.4px); }
+}
+
+@keyframes hamster-track-travel {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(12deg); }
+}
+
+@keyframes hamster-leg-run {
+  from { transform: rotate(-12deg); }
+  to { transform: rotate(12deg); }
+}
+
+@media (max-width: 420px) {
+  .hamster-wheel {
+    flex-basis: 7.4rem;
+    width: 7.4rem;
+    height: 5.3rem;
+  }
+
+  .hamster-wheel--compact {
+    flex-basis: 5.5rem;
+    width: 5.5rem;
+    height: 4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hamster-wheel *,
+  .hamster-wheel *::before,
+  .hamster-wheel *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

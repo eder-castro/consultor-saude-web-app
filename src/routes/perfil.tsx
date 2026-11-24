@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryRefreshNotice } from "@/components/QueryRefreshNotice";
 import { FileText, Loader2, Moon, Plus, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
@@ -73,6 +74,8 @@ function PerfilPage() {
     <AppShell title="Perfil e exames">
       <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
         <div className="mx-auto flex min-w-0 max-w-2xl flex-col gap-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <QueryRefreshNotice query={context} />
+          <QueryRefreshNotice query={sleepReviews} />
           <section className="rounded-2xl border border-border bg-card p-5">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">Sua conta</p>
             <h2 className="mt-2 break-all text-lg font-semibold">{user?.email}</h2>
@@ -105,7 +108,7 @@ function PerfilPage() {
               <p className="mt-4 text-sm text-muted-foreground">
                 Procurando registros para revisar...
               </p>
-            ) : sleepReviews.isError ? (
+            ) : sleepReviews.isError && !sleepReviews.data ? (
               <p role="alert" className="mt-4 text-sm text-destructive">
                 Não foi possível carregar os registros antigos de sono.
               </p>
@@ -169,7 +172,7 @@ function PerfilPage() {
             <h2 className="font-semibold">Exames recentes</h2>
             {context.isLoading ? (
               <p className="mt-3 text-sm text-muted-foreground">Carregando exames...</p>
-            ) : context.isError ? (
+            ) : context.isError && !context.data ? (
               <p className="mt-3 text-sm text-destructive">
                 Não foi possível carregar seus exames.
               </p>

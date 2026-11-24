@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Prévia do loading — Meu dia</title><style>.analysis-loading {
+  --analysis-ink: var(--foreground, currentColor);
+  --analysis-muted: var(--muted-foreground, currentColor);
+  --analysis-surface: var(--card, transparent);
+  --analysis-line: var(--border, currentColor);
+
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 34rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  color: var(--analysis-ink);
+  background: color-mix(in oklab, var(--analysis-surface) 92%, transparent);
+  border: 1px solid color-mix(in oklab, var(--analysis-line) 78%, transparent);
+  border-radius: 1.15rem;
+}
+
+.analysis-loading__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--analysis-muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.analysis-loading--compact {
+  gap: 0.65rem;
+  padding: 0.62rem 0.75rem;
+  border-radius: 1rem;
+}
+
+@media (max-width: 420px) {
+  .analysis-loading {
+    gap: 0.65rem;
+    padding: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analysis-loading *,
+  .analysis-loading *::before,
+  .analysis-loading *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.hamster-wheel {
+  display: block;
+  flex: 0 0 9.5rem;
+  width: 9.5rem;
+  height: 6.8rem;
+  overflow: hidden;
+  color: var(--analysis-muted, var(--muted-foreground, currentColor));
+}
+
+.hamster-wheel__illustration {
+  display: block;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.hamster-wheel__rim {
+  stroke-linecap: butt;
+  transform-origin: 88px 78px;
+  animation: hamster-wheel-turn 2.8s linear infinite;
+}
+
+.hamster-wheel__travel {
+  transform-box: view-box;
+  transform-origin: 88px 78px;
+  animation: hamster-track-travel 4.8s ease-in-out infinite;
+}
+
+.hamster-wheel__runner {
+  animation: hamster-run-bob 0.22s ease-in-out infinite alternate;
+}
+
+.hamster-wheel__body {
+  fill: currentColor;
+  stroke: none;
+}
+
+.hamster-wheel__leg {
+  transform-origin: 80px 125px;
+  animation: hamster-leg-run 0.22s ease-in-out infinite alternate;
+}
+
+.hamster-wheel__leg--front {
+  transform-origin: 104px 123px;
+  animation-delay: -0.22s;
+}
+
+.hamster-wheel--compact {
+  flex-basis: 6.8rem;
+  width: 6.8rem;
+  height: 4.9rem;
+}
+
+@keyframes hamster-wheel-turn {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes hamster-run-bob {
+  from { transform: translateY(0.4px); }
+  to { transform: translateY(-0.4px); }
+}
+
+@keyframes hamster-track-travel {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(12deg); }
+}
+
+@keyframes hamster-leg-run {
+  from { transform: rotate(-12deg); }
+  to { transform: rotate(12deg); }
+}
+
+@media (max-width: 420px) {
+  .hamster-wheel {
+    flex-basis: 7.4rem;
+    width: 7.4rem;
+    height: 5.3rem;
+  }
+
+  .hamster-wheel--compact {
+    flex-basis: 5.5rem;
+    width: 5.5rem;
+    height: 4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hamster-wheel *,
+  .hamster-wheel *::before,
+  .hamster-wheel *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+:root{--foreground:#e3e3e3;--muted-foreground:#b1b4bb;--card:#1e1f20;--border:#393b3d;--primary:#a8c7fa;color-scheme:dark}*{box-sizing:border-box}body{margin:0;background:#131314;color:var(--foreground);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.55}main{max-width:820px;margin:0 auto;padding:48px 24px}h1{font-size:clamp(26px,5vw,36px);font-weight:550;letter-spacing:-.03em;margin:12px 0}p{color:var(--muted-foreground);margin:0 0 24px}.tag{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--primary)}.chat{border:1px solid var(--border);border-radius:24px;padding:24px;background:#191a1b;min-height:235px;display:flex;flex-direction:column;gap:24px}.outgoing{align-self:flex-end;font-size:14px;border-radius:18px 18px 3px 18px;padding:12px 16px;background:#2a2b2e;max-width:90%}.analysis-loading{max-width:100%;min-height:130px}.controls{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}button{border:1px solid var(--border);border-radius:12px;background:#202124;color:var(--foreground);padding:11px 16px;font:inherit;font-size:13px;cursor:pointer;min-height:44px}button:first-child{background:var(--primary);border-color:var(--primary);color:#182333}button:hover{filter:brightness(1.13)}button:focus-visible{outline:2px solid var(--primary);outline-offset:3px}.meta{display:flex;justify-content:space-between;gap:16px;margin:18px 2px;color:var(--muted-foreground);font-size:12px}#elapsed{font-variant-numeric:tabular-nums;white-space:nowrap}.sequence{list-style:none;padding:0;margin:28px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.sequence li{border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-size:12px;color:var(--muted-foreground)}.sequence li.active{border-color:var(--primary);color:var(--primary);background:#a8c7fa0b}.sequence small{display:block;font-size:10px;color:var(--muted-foreground);margin-bottom:3px}.done{border:1px solid #a8c7fa55;border-radius:18px;padding:24px;background:var(--card);min-height:130px}.done strong{color:var(--primary);font-weight:550}.done p{font-size:14px;margin:6px 0 0}.note{font-size:12px;line-height:1.7;margin-top:22px}.paused .analysis-loading *{animation-play-state:paused!important}.paused button{animation:none}.reduced-note{display:none}@media(prefers-reduced-motion:reduce){.reduced-note{display:inline}}@media(max-width:520px){main{padding:28px 16px}.chat{padding:16px;gap:20px}.sequence{grid-template-columns:repeat(2,1fr)}.analysis-loading{min-height:145px}.meta{font-size:11px}.controls button{flex:1 1 auto}}
+.light{--foreground:#202124;--muted-foreground:#5f6368;--card:#fff;--border:#dadce0;--primary:#3867d6;color-scheme:light;background:#f8f9fa}.light .chat,.light button{background:#fff}.light .outgoing{background:#e9eaee}.light button:first-child{background:var(--primary);color:#fff}
+</style></head><body><main><span class="tag">Meu dia · demonstração</span><h1>Loading com etapas e hamster</h1><p>Uma prévia do componente que está no seu chat, com etapas simuladas.</p><section class="chat" aria-label="Demonstração do chat"><div class="outgoing">Enviei uma foto da minha refeição.</div><div id="screen"><div class="analysis-loading" role="status" aria-label="Preparando suas fotos para envio..."><span class="hamster-wheel" aria-hidden="true"><svg class="hamster-wheel__illustration" viewBox="0 0 176 164" role="presentation" focusable="false"><g class="hamster-wheel__frame"><circle class="hamster-wheel__rim" cx="88" cy="78" r="62" pathLength="360" stroke-dasharray="27 3"></circle><path class="hamster-wheel__stand" d="M57 132 47 149M119 132 129 149"></path><path class="hamster-wheel__base" d="M41 149h94"></path></g><g class="hamster-wheel__travel"><g class="hamster-wheel__track-contact" transform="translate(0 4)"><g class="hamster-wheel__runner"><path class="hamster-wheel__leg hamster-wheel__leg--back" d="M80 125q-3 5-8 5M83 126q-2 5-7 4"></path><path class="hamster-wheel__leg hamster-wheel__leg--front" d="M103 123q2 5 8 5M106 123q3 1 6 0"></path><path class="hamster-wheel__body" fill-rule="evenodd" d="M71 113c4-7 10-8 17-8 5 0 10 1 15-2v-2c-3-4-1-7 3-5l3 3c8 0 14 6 17 12-1 4-5 5-10 7-5 2-6 4-2 5h2c2 0 3 2 1 3-2-1-4-1-6-1s-7-1-10-1c-8 5-19 7-26 3l-5-1c-3 0-4-2-3-6l2-1c-2-1-2-3-4-6 4 3 6 3 6 0Z M117 105.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3Z"></path></g></g></g></svg></span><span class="analysis-loading__label">Preparando suas fotos para envio...</span></div></div></section><div class="meta"><span id="phase">Hamster na roda · etapa simulada</span><span id="elapsed">0 s / 18 s</span></div><div class="controls"><button id="restart" type="button">Repetir sequência</button><button id="theme" type="button">Alternar tema</button><button id="pause" type="button">Pausar</button></div><ol class="sequence"><li><small>0–2 segundos</small>Preparar fotos</li><li><small>2–5 segundos</small>Consultar histórico</li><li><small>5–11 segundos</small>Interpretar a foto</li><li><small>11–15 segundos</small>Tentar novamente</li><li><small>15–18 segundos</small>Conferir resultado</li><li><small>18 segundos</small>Concluir</li></ol><p class="note">Etapas simuladas em uma sequência de 18 segundos. No app, o texto acompanha o processamento real. O corpo mantém o mesmo tamanho, com pernas mais curtas e movimento suave para frente e para trás acompanhando a curva da roda. A ilustração acompanha a cor do texto e aparece desde o início, sem skeleton. Nenhum dado é enviado nesta prévia. <span class="reduced-note">Seu dispositivo está com movimento reduzido: a ilustração será exibida sem animação.</span></p><noscript>Ative JavaScript para assistir à sequência. A ilustração acima é o componente do app.</noscript></main><script>
+const data={"loading":"\u003cdiv class=\"analysis-loading\" role=\"status\" aria-label=\"Preparando suas fotos para envio...\">\u003cspan class=\"hamster-wheel\" aria-hidden=\"true\">\u003csvg class=\"hamster-wheel__illustration\" viewBox=\"0 0 176 164\" role=\"presentation\" focusable=\"false\">\u003cg class=\"hamster-wheel__frame\">\u003ccircle class=\"hamster-wheel__rim\" cx=\"88\" cy=\"78\" r=\"62\" pathLength=\"360\" stroke-dasharray=\"27 3\">\u003c/circle>\u003cpath class=\"hamster-wheel__stand\" d=\"M57 132 47 149M119 132 129 149\">\u003c/path>\u003cpath class=\"hamster-wheel__base\" d=\"M41 149h94\">\u003c/path>\u003c/g>\u003cg class=\"hamster-wheel__travel\">\u003cg class=\"hamster-wheel__track-contact\" transform=\"translate(0 4)\">\u003cg class=\"hamster-wheel__runner\">\u003cpath class=\"hamster-wheel__leg hamster-wheel__leg--back\" d=\"M80 125q-3 5-8 5M83 126q-2 5-7 4\">\u003c/path>\u003cpath class=\"hamster-wheel__leg hamster-wheel__leg--front\" d=\"M103 123q2 5 8 5M106 123q3 1 6 0\">\u003c/path>\u003cpath class=\"hamster-wheel__body\" fill-rule=\"evenodd\" d=\"M71 113c4-7 10-8 17-8 5 0 10 1 15-2v-2c-3-4-1-7 3-5l3 3c8 0 14 6 17 12-1 4-5 5-10 7-5 2-6 4-2 5h2c2 0 3 2 1 3-2-1-4-1-6-1s-7-1-10-1c-8 5-19 7-26 3l-5-1c-3 0-4-2-3-6l2-1c-2-1-2-3-4-6 4 3 6 3 6 0Z M117 105.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3Z\">\u003c/path>\u003c/g>\u003c/g>\u003c/g>\u003c/svg>\u003c/span>\u003cspan class=\"analysis-loading__label\">Preparando suas fotos para envio...\u003c/span>\u003c/div>","labels":{"preparing_images":"Preparando suas fotos para envio...","sending_input":"Enviando seu registro para análise...","reading_input":"Identificando o que você enviou...","loading_context":"Consultando seus registros para contextualizar a análise...","analyzing_image":"Aguardando a interpretação das fotos pelo serviço de análise...","analyzing_text":"Aguardando a interpretação do texto pelo serviço de análise...","retrying_service":"O serviço não respondeu nesta tentativa. Tentando novamente...","checking_result":"Conferindo o resultado antes de mostrar a revisão...","refining_analysis":"Refinando a interpretação para montar a revisão...","loading_saved_context":"Consultando o registro confirmado e seu histórico de referência...","analyzing_saved_record":"Aguardando a análise do registro confirmado..."}};
+const steps=[{at:0,key:'preparing_images'},{at:2000,key:'loading_context'},{at:5000,key:'analyzing_image'},{at:11000,key:'retrying_service'},{at:15000,key:'checking_result'},{at:18000,key:null}];
+const screen=document.getElementById('screen'),phase=document.getElementById('phase'),clock=document.getElementById('elapsed'),pauseButton=document.getElementById('pause');let elapsed=0,last=performance.now(),running=true,scene=-1,previousStage=-1;
+function paint(){const nextScene=elapsed>=18000?2:1;if(scene!==nextScene){screen.innerHTML=nextScene===1?data.loading:'<div class="done" role="status"><strong>Análise concluída</strong><p>O loading desaparece e os dados ficam disponíveis para revisar antes de salvar.</p></div>';scene=nextScene;}let stage=0;steps.forEach((step,index)=>{if(elapsed>=step.at)stage=index});if(stage!==previousStage){const loading=screen.querySelector('.analysis-loading');if(loading){const label=data.labels[steps[stage].key];loading.querySelector('.analysis-loading__label').textContent=label;loading.setAttribute('aria-label',label)}document.querySelectorAll('.sequence li').forEach((li,index)=>li.classList.toggle('active',index===stage));previousStage=stage}clock.textContent=Math.floor(elapsed/1000)+' s / 18 s';phase.textContent=scene===2?'Demonstração concluída':'Hamster na roda · etapa simulada';if(elapsed>=18000){running=false;document.body.classList.remove('paused');pauseButton.textContent='Continuar';pauseButton.disabled=true}}
+function start(time){elapsed=time;last=performance.now();running=true;scene=-1;previousStage=-1;pauseButton.disabled=false;pauseButton.textContent='Pausar';document.body.classList.remove('paused');paint()}
+document.getElementById('restart').onclick=()=>start(0);document.getElementById('theme').onclick=()=>document.body.classList.toggle('light');pauseButton.onclick=()=>{running=!running;last=performance.now();pauseButton.textContent=running?'Pausar':'Continuar';document.body.classList.toggle('paused',!running)};
+function tick(now){if(running)elapsed=Math.min(18000,elapsed+now-last);last=now;paint();requestAnimationFrame(tick)}paint();requestAnimationFrame(tick);
+</script></body></html>

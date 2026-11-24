@@ -1,12 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { QueryRefreshNotice } from "@/components/QueryRefreshNotice";
 import { useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { WeeklyDetailDialog, type WeeklyMetric } from "@/components/dashboard/WeeklyDetailDialog";
+import { MealSummaryList } from "@/components/dashboard/MealSummaryList";
+import { MealCorrectionDialog } from "@/components/dashboard/MealCorrectionDialog";
+import { WaterHistoryDialog } from "@/components/dashboard/WaterHistoryDialog";
+import { RecordDateDialog } from "@/components/dashboard/RecordDateDialog";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDailySummary, getSleepReviews } from "@/lib/api";
-import { Activity, Droplet, Moon, Scale, Utensils } from "lucide-react";
+import { getApiErrorMessage, getDailySummary, getSleepReviews } from "@/lib/api";
+import { Activity, BookOpen, Droplet, Moon, Scale, Utensils } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 export const Route = createFileRoute("/dashboard")({
@@ -27,11 +33,11 @@ function ProtectedDashboardPage() {
   );
 }
 
-function DashboardPage() {
+export function DashboardPage() {
   const [weeklyMetric, setWeeklyMetric] = useState<WeeklyMetric | null>(null);
-  const { data, isLoading } = useQuery({
+  const summary = useQuery({
     queryKey: ["daily-summary"],
-    queryFn: getDailySummary,
+    queryFn: () => getDailySummary(),
     refetchOnWindowFocus: true,
   });
   const sleepReviews = useQuery({
@@ -43,7 +49,31 @@ function DashboardPage() {
     <AppShell title="Dashboard do Dia">
       <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-4">
         <div className="mx-auto flex min-w-0 max-w-2xl flex-col gap-3 pb-[env(safe-area-inset-bottom)]">
-          {isLoading || !data ? (
+          <Link
+            to="/analises"
+            className="flex min-h-11 items-center gap-2 rounded-xl border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <BookOpen className="size-4 text-primary" /> Consultar análises anteriores
+          </Link>
+          <RecordDateDialog />
+          <QueryRefreshNotice query={summary} />
+          {summary.isError && !summary.data ? (
+            <section role="alert" className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+              <h2 className="text-sm font-semibold">Não foi possível carregar o resumo do dia.</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {getApiErrorMessage(summary.error)}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3"
+                disabled={summary.isFetching}
+                onClick={() => void summary.refetch()}
+              >
+                {summary.isFetching ? "Tentando novamente..." : "Tentar novamente"}
+              </Button>
+            </section>
+          ) : summary.isPending ? (
             <>
               <Skeleton className="h-28 w-full rounded-2xl" />
               <Skeleton className="h-40 w-full rounded-2xl" />
@@ -88,69 +118,56 @@ function DashboardPage() {
                       <span className="text-sm font-medium">Hidratação</span>
                     </div>
                     <span className="text-xs text-muted-foreground">
-                      {data.agua_ml} / {data.agua_meta_ml} ml
+                      {summary.data.agua_ml} / {summary.data.agua_meta_ml} ml
                     </span>
                   </div>
-                  <Progress value={Math.min(100, (data.agua_ml / data.agua_meta_ml) * 100)} />
+                  <Progress value={Math.min(100, (summary.data.agua_ml / summary.data.agua_meta_ml) * 100)} />
                   <p className="mt-2 text-xs text-muted-foreground">Toque para ver a semana</p>
                 </Card>
               </button>
+              <WaterHistoryDialog />
 
-              <button
-                type="button"
-                className="rounded-2xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setWeeklyMetric("refeicoes")}
-              >
-                <Card interactive>
-                  <div className="mb-3 flex items-center gap-2">
+                <Card>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
                     <Utensils className="size-4 text-primary" />
                     <span className="text-sm font-medium">Refeições</span>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setWeeklyMetric("refeicoes")}>
+                      Ver semana
+                    </Button>
                   </div>
-                  {data.refeicoes.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nada registrado ainda hoje.</p>
-                  ) : (
-                    <ul className="space-y-3">
-                      {data.refeicoes.map((r, i) => (
-                        <li key={i} className="border-l-2 border-primary/40 pl-3">
-                          <p className="text-xs text-muted-foreground">{r.hora}</p>
-                          <p className="text-sm">
-                            {r.itens.map((it) => `${it.item} (${it.quantidade})`).join(", ")}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="mt-3 text-xs text-muted-foreground">Toque para ver a semana</p>
+                  <MealSummaryList meals={summary.data.refeicoes} emptyMessage="Nada registrado ainda hoje." />
                 </Card>
-              </button>
+                <MealCorrectionDialog meals={summary.data.refeicoes} />
 
               <div className="grid min-w-0 grid-cols-3 gap-2 sm:gap-3">
                 <MiniCard
                   icon={<Activity className="size-4" />}
                   label="Exercício"
-                  value={data.exercicio ?? "—"}
+                  value={summary.data.exercicio ?? "—"}
                   onClick={() => setWeeklyMetric("exercicio")}
                 />
                 <MiniCard
                   icon={<Moon className="size-4" />}
                   label="Sono"
-                  value={data.sono_horas !== null ? formatSleepHours(data.sono_horas) : "—"}
+                  value={summary.data.sono_horas !== null ? formatSleepHours(summary.data.sono_horas) : "—"}
                   onClick={() => setWeeklyMetric("sono")}
                 />
                 <MiniCard
                   icon={<Scale className="size-4" />}
                   label="Peso"
-                  value={data.peso_kg !== null ? `${data.peso_kg} kg` : "—"}
+                  value={summary.data.peso_kg !== null ? `${summary.data.peso_kg} kg` : "—"}
                   onClick={() => setWeeklyMetric("peso")}
                 />
               </div>
 
-              {data.tendencia && (
+              {summary.data.tendencia && (
                 <Card>
                   <p className="text-xs uppercase tracking-wider text-muted-foreground">
                     Tendência
                   </p>
-                  <p className="mt-1 text-sm">{data.tendencia}</p>
+                  <p className="mt-1 text-sm">{summary.data.tendencia}</p>
                 </Card>
               )}
             </>

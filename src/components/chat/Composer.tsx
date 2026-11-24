@@ -3,6 +3,7 @@ import { Camera, ImageIcon, Plus, Send, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useComposerDraft } from "@/providers/ComposerDraftProvider";
 
 export type ComposerSubmit =
   | { kind: "text"; text: string }
@@ -17,8 +18,8 @@ export function Composer({
   disabled?: boolean;
   onSubmit: (s: ComposerSubmit) => void;
 }) {
-  const [text, setText] = useState("");
-  const [pendingFiles, setPendingFiles] = useState<{ file: File; url: string }[]>([]);
+  const { draft, setText, addFiles, removeFile, takeDraft } = useComposerDraft();
+  const { text, files: pendingFiles } = draft;
   const [menuOpen, setMenuOpen] = useState(false);
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -27,15 +28,7 @@ export function Composer({
   function pickFiles(files: FileList | null) {
     setMenuOpen(false);
     if (!files?.length) return;
-    const selectedFiles = Array.from(files);
-    setPendingFiles((current) => {
-      const available = Math.max(0, MAX_IMAGES - current.length);
-      const selected = selectedFiles
-        .filter((file) => file.type.startsWith("image/"))
-        .slice(0, available)
-        .map((file) => ({ file, url: URL.createObjectURL(file) }));
-      return [...current, ...selected];
-    });
+    addFiles(Array.from(files));
   }
 
   function send() {
@@ -47,14 +40,13 @@ export function Composer({
         previewUrls: pendingFiles.map(({ url }) => url),
         caption: text.trim(),
       });
-      setPendingFiles([]);
-      setText("");
+      takeDraft();
       return;
     }
     const t = text.trim();
     if (!t) return;
     onSubmit({ kind: "text", text: t });
-    setText("");
+    takeDraft();
   }
 
   return (
@@ -87,10 +79,7 @@ export function Composer({
                     className="absolute -right-1.5 -top-1.5 size-6 rounded-full"
                     aria-label={`Remover imagem ${index + 1}`}
                     onClick={() => {
-                      URL.revokeObjectURL(pending.url);
-                      setPendingFiles((current) =>
-                        current.filter((item) => item.url !== pending.url),
-                      );
+                      removeFile(pending.url);
                     }}
                   >
                     <X className="size-3" />

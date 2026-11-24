@@ -1,0 +1,49 @@
+.analysis-loading {
+  --analysis-ink: var(--foreground, currentColor);
+  --analysis-muted: var(--muted-foreground, currentColor);
+  --analysis-surface: var(--card, transparent);
+  --analysis-line: var(--border, currentColor);
+
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  max-width: 34rem;
+  min-width: 0;
+  padding: 0.9rem 1rem;
+  color: var(--analysis-ink);
+  background: color-mix(in oklab, var(--analysis-surface) 92%, transparent);
+  border: 1px solid color-mix(in oklab, var(--analysis-line) 78%, transparent);
+  border-radius: 1.15rem;
+}
+
+.analysis-loading__label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--analysis-muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.analysis-loading--compact {
+  gap: 0.65rem;
+  padding: 0.62rem 0.75rem;
+  border-radius: 1rem;
+}
+
+@media (max-width: 420px) {
+  .analysis-loading {
+    gap: 0.65rem;
+    padding: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .analysis-loading *,
+  .analysis-loading *::before,
+  .analysis-loading *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
