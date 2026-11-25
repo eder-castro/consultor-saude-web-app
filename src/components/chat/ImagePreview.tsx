@@ -13,10 +13,10 @@ export function ImagePreview({ src, index }: { src: string; index: number }) {
         <button
           type="button"
           aria-label={`Ampliar imagem enviada ${index + 1}`}
-          className="block w-full cursor-zoom-in rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="block size-30 cursor-zoom-in overflow-hidden rounded-[20px] bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <img src={src} alt={`imagem enviada ${index + 1}`} className="max-h-[32rem] min-h-40 w-full rounded-xl object-contain" />
-          <span className="mt-1 block text-xs text-muted-foreground">Toque para ampliar</span>
+          {/* Miniatura quadrada no estilo do Gemini; a foto inteira abre no visualizador. */}
+          <img src={src} alt={`imagem enviada ${index + 1}`} className="size-full object-cover" />
         </button>
       </DialogTrigger>
       <DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col gap-3 rounded-none border-0 bg-background p-3 pt-10 sm:h-[95dvh] sm:w-[95vw] sm:max-w-none sm:rounded-xl">

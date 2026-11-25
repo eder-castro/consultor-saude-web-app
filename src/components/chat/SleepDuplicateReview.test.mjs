@@ -12,7 +12,7 @@ const payload = { grupos: [{
 }] };
 const response = value => new Response(JSON.stringify(value));
 const approval = () => screen.getByRole("checkbox", { name: /Substituir o sono salvo/ });
-const confirm = () => screen.getByRole("button", { name: "Confirmar" });
+const confirm = () => screen.getByRole("button", { name: "Salvar" });
 
 test("duplicate photo uses event/image date, requires opt-in and retries the identical replacement after a lost response", async () => {
   localStorage.clear();

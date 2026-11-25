@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Check, Plus, Trash2, X } from "lucide-react";
+import { ReviewItemRow } from "./ReviewItemRow";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -89,6 +90,8 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
   const [invalidExerciseDurations, setInvalidExerciseDurations] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const readonly = status !== "pending";
   const sleepReview = useSleepConflictReview(groups, !readonly);
 
@@ -121,6 +124,8 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
     );
   }
   function remove(groupIndex: number, id: string) {
+    setEditingId(null);
+    setRemovingId(null);
     setGroups((current) =>
       current.map((group, index) =>
         index === groupIndex
@@ -130,6 +135,9 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
     );
   }
   function add(groupIndex: number) {
+    const id = Math.random().toString(36).slice(2, 10);
+    setRemovingId(null);
+    setEditingId(id);
     setGroups((current) =>
       current.map((group, index) =>
         index === groupIndex
@@ -138,7 +146,7 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
               itens: [
                 ...group.itens,
                 {
-                  id: Math.random().toString(36).slice(2, 10),
+                  id,
                   item: "",
                   quantidade_estimada: "",
                   confirmado: true,
@@ -152,6 +160,8 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
 
   async function confirm() {
     setDurationError(null);
+    setEditingId(null);
+    setRemovingId(null);
     if (sleepReview.blocked) return;
     const invalidDate = groups.some((group) => !/^\d{4}-\d{2}-\d{2}$/.test(group.data ?? ""));
     if (invalidDate) {
@@ -244,55 +254,85 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
     }
   }
 
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+  const formatDate = (value?: string | null) => (value ? value.split("-").reverse().join("/") : "sem data");
+
   return (
-    <div className="min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-3.5 shadow-sm sm:p-6">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm uppercase tracking-wider text-muted-foreground">
+    <div className="min-w-0 overflow-hidden rounded-[20px] border border-border bg-card px-4 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 pt-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Registros detectados
           </p>
+          {status === "pending" && (
+            <p className="mt-0.5 text-xs text-muted-foreground">Toque para corrigir · segure para remover</p>
+          )}
+          {status === "saved" && (
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Salvos. Para ver os dados atuais, abra Dia.
+              {payload.grupos.some((group) => group.evento_tipo === "alimentacao") &&
+                " Para corrigir uma refeição, use a seção Refeições."}
+            </p>
+          )}
         </div>
         {status === "saved" && (
-          <span className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
-            <Check className="size-3" /> Salvo
-          </span>
-        )}
-        {status === "pending" && (
-          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">
-            Revise antes de confirmar
+          <span className="flex h-9 shrink-0 items-center gap-1 text-sm font-semibold text-primary">
+            <Check className="size-4" strokeWidth={2.5} /> Salvo
           </span>
         )}
         {status === "discarded" && (
-          <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
-            Descartado
-          </span>
+          <span className="flex h-9 shrink-0 items-center text-sm text-muted-foreground">Descartado</span>
+        )}
+        {status === "pending" && (
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label="Descartar"
+              title="Descartar"
+              className="size-11 rounded-full text-muted-foreground"
+              disabled={saving}
+              onClick={() => onResolved("discarded")}
+            >
+              <X className="size-5" />
+            </Button>
+            <Button
+              type="button"
+              className="h-11 rounded-full px-4 text-sm font-semibold"
+              disabled={saving || sleepReview.blocked}
+              onClick={confirm}
+            >
+              <Check className="size-4" strokeWidth={2.5} /> {saving ? "Salvando..." : "Salvar"}
+            </Button>
+          </div>
         )}
       </div>
-      {status === "saved" && (
-        <p className="mb-3 text-xs text-muted-foreground">
-          Itens confirmados e salvos. Para ver os dados atuais, abra Dia.
-          {payload.grupos.some((group) => group.evento_tipo === "alimentacao") &&
-            " Para corrigir uma refeição, use a seção Refeições."}
-        </p>
-      )}
 
       {status === "pending" && payload.avisos_extracao?.map((warning, index) => (
-        <p key={index} role="alert" className="mb-3 rounded-lg bg-amber-100/10 p-3 text-sm text-foreground">
+        <p key={index} role="alert" className="mt-3 rounded-xl bg-amber-100/10 p-3 text-sm text-foreground">
           {warning}
         </p>
       ))}
-      <div className="space-y-4 sm:space-y-5">
-        {groups.map((group, groupIndex) => (
+
+      <div className="mt-2">
+        {groups.map((group, groupIndex) => {
+          const simpleItems = group.evento_tipo !== "sono" && group.evento_tipo !== "exercicio";
+          return (
           <section
             key={`${group.evento_tipo}-${group.data ?? "sem-data"}-${groupIndex}`}
-            className="space-y-2"
+            className="space-y-2 border-t border-border/60 py-3 first:border-t-0 first:pt-1"
           >
-            <h3 className="text-base font-semibold text-foreground">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {TIPO_LABEL[group.evento_tipo]}
+              {readonly && ` · ${formatDate(group.data)}`}
+              {readonly && group.evento_tipo === "alimentacao" && group.horario && ` · ${group.horario}`}
             </h3>
             {!readonly && group.data_imagem && (
               <p className="text-xs text-muted-foreground">
-                Data lida na imagem: {group.data_imagem.split("-").reverse().join("/")}.
+                Data lida na imagem: {formatDate(group.data_imagem)}.
                 {group.data !== group.data_imagem && " Você escolheu uma data diferente; confira antes de salvar."}
               </p>
             )}
@@ -302,62 +342,67 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
                 sem somar novamente a água já registrada.
               </p>
             )}
-            <label className="flex max-w-56 items-center gap-3 text-sm text-muted-foreground">
-              <span className="shrink-0">Data do registro</span>
-              <Input
-                type="date"
-                value={group.data ?? ""}
-                disabled={readonly}
-                required
-                onChange={(event) => updateGroup(groupIndex, { data: event.target.value })}
-                className="h-10 min-w-0 bg-background text-base text-foreground"
-                aria-label={`Data de ${TIPO_LABEL[group.evento_tipo]}`}
-              />
-            </label>
             {!readonly && (
-              <div className="space-y-1">
-                <div className="flex gap-2">
-                  {([0, -1] as const).map((offset) => (
-                    <Button
-                      key={offset}
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        const today = new Intl.DateTimeFormat("en-CA", {
-                          timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
-                        }).format(new Date());
-                        const day = new Date(`${today}T12:00:00Z`);
-                        day.setUTCDate(day.getUTCDate() + offset);
-                        updateGroup(groupIndex, { data: day.toISOString().slice(0, 10) });
-                      }}
-                    >
-                      {offset === 0 ? "Hoje" : "Ontem"}
-                    </Button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Use a data em que aconteceu. Se enviou depois da meia-noite, confira se foi ontem.
-                </p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Input
+                  type="date"
+                  value={group.data ?? ""}
+                  required
+                  onChange={(event) => updateGroup(groupIndex, { data: event.target.value })}
+                  className="h-9 w-auto min-w-0 rounded-full bg-background px-3 text-sm text-foreground"
+                  aria-label={`Data de ${TIPO_LABEL[group.evento_tipo]}`}
+                />
+                {([0, -1] as const).map((offset) => (
+                  <Button
+                    key={offset}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-9 rounded-full px-3"
+                    onClick={() => {
+                      const day = new Date(`${today}T12:00:00Z`);
+                      day.setUTCDate(day.getUTCDate() + offset);
+                      updateGroup(groupIndex, { data: day.toISOString().slice(0, 10) });
+                    }}
+                  >
+                    {offset === 0 ? "Hoje" : "Ontem"}
+                  </Button>
+                ))}
+                {group.evento_tipo === "alimentacao" && (
+                  <Input
+                    type="time"
+                    value={group.horario ?? ""}
+                    required
+                    aria-label="Horário da refeição"
+                    onChange={(event) => updateGroup(groupIndex, { horario: event.target.value })}
+                    className="h-9 w-auto min-w-0 rounded-full bg-background px-3 text-sm text-foreground"
+                  />
+                )}
               </div>
             )}
-            {group.evento_tipo === "alimentacao" && (
-              <label className="flex max-w-48 items-center gap-3 text-sm text-muted-foreground">
-                <span className="shrink-0">Horário</span>
-                <Input
-                  type="time"
-                  value={group.horario ?? ""}
-                  disabled={readonly}
-                  required
-                  onChange={(event) =>
-                    updateGroup(groupIndex, { horario: event.target.value })
-                  }
-                  className="h-10 min-w-0 bg-background text-base text-foreground"
-                />
-              </label>
-            )}
-            <ul className="space-y-3">
+            <ul className={simpleItems ? "divide-y divide-border/50" : "space-y-3"}>
               {group.itens.map((it) => {
+                if (simpleItems) {
+                  return (
+                    <ReviewItemRow
+                      key={it.id}
+                      item={it}
+                      readonly={readonly}
+                      mode={editingId === it.id ? "edit" : removingId === it.id ? "confirm-remove" : "view"}
+                      quantityPlaceholder={group.evento_tipo === "peso" ? "Ex.: 93,7 kg" : "Ex.: 2 colheres"}
+                      onEdit={() => { setRemovingId(null); setEditingId(it.id); }}
+                      onDone={() => {
+                        // Quem corrigiu o item quer salvá-lo: marca como incluído.
+                        setEditingId(null);
+                        if (it.item.trim() && !it.confirmado) update(groupIndex, it.id, { confirmado: true });
+                      }}
+                      onAskRemove={() => { setEditingId(null); setRemovingId(it.id); }}
+                      onCancelRemove={() => setRemovingId(null)}
+                      onRemove={() => remove(groupIndex, it.id)}
+                      onChange={(patch) => update(groupIndex, it.id, patch)}
+                    />
+                  );
+                }
                 const isExercise = group.evento_tipo === "exercicio";
                 const stageTotal = !readonly && group.evento_tipo === "sono" && it.confirmado && it.item.trim()
                   ? sleepStageMismatch(it) : null;
@@ -372,14 +417,15 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
                       checked={it.confirmado}
                       disabled={readonly}
                       onCheckedChange={(v) => update(groupIndex, it.id, { confirmado: !!v })}
-                      className="size-6 shrink-0"
+                      className="size-5 shrink-0 rounded-full"
+                      aria-label={`Incluir ${it.item || "item"}`}
                     />
                     <Input
                       value={it.item}
                       disabled={readonly}
                       onChange={(e) => update(groupIndex, it.id, { item: e.target.value })}
                       placeholder="Item"
-                      className="h-11 min-w-0 bg-background text-base"
+                      className="h-10 min-w-0 bg-background text-base"
                     />
                     {!isExercise && (
                       <Input
@@ -388,18 +434,18 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
                         onChange={(e) =>
                           update(groupIndex, it.id, { quantidade_estimada: e.target.value })
                         }
-                        placeholder={group.evento_tipo === "sono" ? "hh:mm" : "Qtd"}
-                        inputMode={group.evento_tipo === "sono" ? "numeric" : undefined}
-                        aria-label={group.evento_tipo === "sono" ? `Duração de ${it.item || "sono"} em hh:mm` : undefined}
-                        aria-invalid={group.evento_tipo === "sono" && it.confirmado &&
-                          (!parseSleepClock(it.quantidade_estimada))}
-                        className="col-start-2 h-11 min-w-0 bg-background text-base sm:col-start-auto sm:w-28"
+                        placeholder="hh:mm"
+                        inputMode="numeric"
+                        aria-label={`Duração de ${it.item || "sono"} em hh:mm`}
+                        aria-invalid={it.confirmado && (!parseSleepClock(it.quantidade_estimada))}
+                        className="col-start-2 h-10 min-w-0 bg-background text-base sm:col-start-auto sm:w-28"
                       />
                     )}
                     {!readonly && (
                       <Button
                         size="icon"
                         variant="ghost"
+                        aria-label={`Remover ${it.item || "item"}`}
                         onClick={() => remove(groupIndex, it.id)}
                         className="col-start-3 row-start-1 size-11 shrink-0 text-muted-foreground hover:text-destructive sm:col-start-auto sm:row-start-auto"
                       >
@@ -417,7 +463,7 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
                     />
                   )}
                   {group.evento_tipo === "sono" && (
-                    <div className="ml-8 grid gap-x-3 gap-y-2 sm:ml-9 sm:grid-cols-2">
+                    <div className="ml-7 grid gap-x-3 gap-y-2 sm:grid-cols-2">
                       {SLEEP_PHASES.map(({ field, label }) => (
                         <label
                           key={field}
@@ -460,13 +506,13 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
                       ))}
                     </div>
                   )}
-                  {group.evento_tipo === "sono" && (
-                    <p className="ml-8 text-xs text-muted-foreground sm:ml-9">
+                  {group.evento_tipo === "sono" && !readonly && (
+                    <p className="ml-7 text-xs text-muted-foreground">
                       Duração total e fases em hh:mm. Deixe fases não informadas vazias.
                     </p>
                   )}
                   {stageTotal !== null && (
-                    <p role="alert" className="ml-8 text-sm text-destructive sm:ml-9">
+                    <p role="alert" className="ml-7 text-sm text-destructive">
                       As fases dormidas somam {formatSleepDuration(stageTotal)}, mas o total é{" "}
                       {it.quantidade_estimada}. Corrija antes de salvar. Tempo acordado não entra nessa soma.
                     </p>
@@ -481,28 +527,29 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
                 variant="ghost"
                 size="sm"
                 onClick={() => add(groupIndex)}
-                className="h-10 text-base text-muted-foreground"
+                className="-ml-2 h-10 text-sm text-muted-foreground"
               >
                 <Plus className="size-4" /> Adicionar item
               </Button>
             )}
           </section>
-        ))}
+          );
+        })}
       </div>
 
-      {durationError && <p role="alert" className="mt-3 text-sm text-destructive">{durationError}</p>}
+      {durationError && <p role="alert" className="mt-2 text-sm text-destructive">{durationError}</p>}
       {!readonly && sleepReview.loading && (
-        <p role="status" className="mt-3 text-sm text-muted-foreground">Conferindo se já existe sono nessa data...</p>
+        <p role="status" className="mt-2 text-sm text-muted-foreground">Conferindo se já existe sono nessa data...</p>
       )}
       {!readonly && sleepReview.error && (
-        <div role="alert" className="mt-3 space-y-2 text-sm">
+        <div role="alert" className="mt-2 space-y-2 text-sm">
           <p>Não foi possível conferir o sono salvo. {sleepReview.error}</p>
           <Button type="button" variant="outline" onClick={sleepReview.refresh}>Conferir novamente</Button>
         </div>
       )}
       {!readonly && sleepReview.conflicts.map(day => (
-        <div key={day.data} role="alert" className="mt-3 space-y-2 rounded-xl border border-amber-500/40 p-3 text-sm">
-          <p>Já existe sono salvo em <strong>{day.data.split("-").reverse().join("/")}</strong>
+        <div key={day.data} role="alert" className="mt-2 space-y-2 rounded-xl border border-amber-500/40 p-3 text-sm">
+          <p>Já existe sono salvo em <strong>{formatDate(day.data)}</strong>
             {day.count > 1 ? ` (${day.count} registros)` : ""}. O novo envio não será somado ao anterior.</p>
           <label className="flex items-start gap-2">
             <input type="checkbox" className="mt-1 size-5 shrink-0" disabled={saving}
@@ -510,41 +557,17 @@ export function ValidationCard({ operationId, payload, status, onResolved, onEdi
               onChange={event => sleepReview.approve(day, event.target.checked)} />
             <span>Substituir o sono salvo desse dia pelos dados revisados acima.</span>
           </label>
-          <p className="text-xs text-muted-foreground">Para manter os dados atuais, descarte este envio. A substituição só ocorre ao confirmar.</p>
+          <p className="text-xs text-muted-foreground">Para manter os dados atuais, descarte este envio. A substituição só ocorre ao salvar.</p>
         </div>
       ))}
-
-      {status === "pending" && (
-        <p className="mt-5 border-t border-border/60 pt-4 text-sm text-muted-foreground">
-          Confira os itens detectados. A análise dos registros será feita depois da confirmação.
-        </p>
-      )}
 
       {saveError && (
         <p
           role="alert"
-          className="mt-3 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="mt-2 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           Não foi possível salvar ainda. {saveError}
         </p>
-      )}
-
-      {!readonly && (
-        <>
-          <div className="mt-5 flex flex-col gap-2 min-[380px]:flex-row min-[380px]:gap-3">
-            <Button
-              variant="outline"
-              className="h-11 flex-1 text-base"
-              disabled={saving}
-              onClick={() => onResolved("discarded")}
-            >
-              <X className="size-4" /> Descartar
-            </Button>
-            <Button className="h-11 flex-1 text-base" disabled={saving || sleepReview.blocked} onClick={confirm}>
-              <Check className="size-4" /> {saving ? "Salvando..." : "Confirmar"}
-            </Button>
-          </div>
-        </>
       )}
     </div>
   );

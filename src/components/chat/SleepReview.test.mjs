@@ -45,8 +45,8 @@ test("sleep screenshot with hr duration confirms one total and preserves stages,
   expect(screen.getByLabelText("Sono leve em hh:mm").value).toBe("03:11");
   expect(screen.getByLabelText("Sono REM em hh:mm").value).toBe("00:37");
   expect(screen.getByLabelText("Acordado em hh:mm").value).toBe("00:05");
-  await waitFor(() => expect(screen.getByRole("button", { name: "Confirmar" }).disabled).toBe(false));
-  fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Salvar" }).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Salvar" }));
   await waitFor(() => expect(resolved?.[0]).toBe("saved"));
   expect(saved.grupos[0].itens).toHaveLength(1);
   expect(saved.grupos[0].itens[0]).toMatchObject({

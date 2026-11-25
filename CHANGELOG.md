@@ -17,6 +17,10 @@ Mudanças relevantes, agrupadas por período. Formato inspirado em
 - Análises da IA no estilo do GEM: blocos curtos com emoji (💡 Insight, ✅ Pontos positivos,
   ⚠️ Atenção, 👉 Próximo passo), bullets de uma frase e valores em negrito; o chat e a página
   de análises renderizam esse markdown simples (`AnalysisText`).
+- Chat com visual mais próximo do Gemini: fotos em miniatura de 120 px que abrem em tela cheia,
+  balões arredondados, análise como texto solto (sem caixa) com fonte de 16 px e bullets recuados.
+- Card de registro compacto: lista "item — quantidade"; toque edita só aquele item, segurar
+  pede confirmação para remover; botões grandes trocados por "Salvar" e "Descartar" (ícone) no topo.
 - Validação de sessão com cache de 60 s em memória (menos chamadas ao Supabase por requisição).
 
 ### Corrigido

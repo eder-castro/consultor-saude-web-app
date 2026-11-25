@@ -166,16 +166,11 @@ function Bubble({
       const imageUrls = m.imageUrls ?? (m.imageUrl ? [m.imageUrl] : []);
       return (
         <div className="flex justify-end">
-          <div className="max-w-[98%] text-base leading-relaxed sm:max-w-[88%]">
-            <div className={`grid gap-3 ${imageUrls.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+          <div className="flex max-w-[92%] flex-col items-end gap-2 text-base leading-relaxed sm:max-w-[85%]">
+            <div className="flex flex-wrap justify-end gap-2">
               {imageUrls.length ? (
                 imageUrls.map((url, index) => (
-                  <div
-                    key={`${url}-${index}`}
-                    className="overflow-hidden rounded-2xl border border-border/70 bg-transparent p-0.5"
-                  >
-                    <ImagePreview src={url} index={index} />
-                  </div>
+                  <ImagePreview key={`${url}-${index}`} src={url} index={index} />
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -186,7 +181,9 @@ function Bubble({
               )}
             </div>
             {m.caption && (
-              <p className="mt-3 break-words px-1 text-muted-foreground">{m.caption}</p>
+              <p className="whitespace-pre-wrap break-words rounded-[22px] bg-muted px-[18px] py-3 text-foreground">
+                {m.caption}
+              </p>
             )}
           </div>
         </div>
@@ -195,7 +192,7 @@ function Bubble({
 
     return (
       <div className="flex justify-end">
-        <div className="max-w-[92%] rounded-2xl rounded-tr-sm bg-muted px-5 py-3 text-base leading-relaxed text-foreground sm:max-w-[85%]">
+        <div className="max-w-[80%] rounded-[22px] bg-muted px-[18px] py-3 text-base leading-relaxed text-foreground sm:max-w-[75%]">
           <p className="whitespace-pre-wrap break-words">{m.text}</p>
         </div>
       </div>
@@ -256,7 +253,7 @@ function Bubble({
     return (
       <div className="flex justify-start">
         <div className="max-w-[92%] px-1 py-2 sm:max-w-[85%]">
-          <AnalysisText className="text-base" text={m.text} />
+          <AnalysisText text={m.text} />
         </div>
       </div>
     );
@@ -318,15 +315,14 @@ function Bubble({
       <div className="w-full max-w-full">
         <ValidationCard operationId={m.id} payload={m.payload} status={m.status} onResolved={onResolved} onEdited={onEdited} />
         {m.status === "saved" && m.analysis && (
-          <section className="mt-3 rounded-2xl border border-border bg-card p-4" aria-live="polite">
-            <h3 className="text-sm font-semibold">Análise dos registros confirmados</h3>
+          <section className="mt-5 px-1" aria-live="polite" aria-label="Análise dos registros confirmados">
             {m.analysis.status === "pending" ? (
-              <AnalysisLoading className="mt-3" compact
+              <AnalysisLoading compact
                 label={stageLabel(m.analysis.stage, "Analisando o registro salvo, com o histórico como referência...")} />
             ) : m.analysis.status === "ready" ? (
-              <AnalysisText className="mt-2" text={m.analysis.text ?? ""} />
+              <AnalysisText text={m.analysis.text ?? ""} />
             ) : (
-              <div className="mt-2 space-y-2">
+              <div className="space-y-2">
                 <p role="alert" className="text-sm text-muted-foreground">
                   Os registros foram salvos, mas a análise não ficou pronta. {m.analysis.text}
                 </p>
