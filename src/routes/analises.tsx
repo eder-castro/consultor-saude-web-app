@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getApiErrorMessage, getSavedAnalyses } from "@/lib/api";
 import { useAuth } from "@/providers/auth-context";
+import { AnalysisText } from "@/components/chat/AnalysisText";
 
 export const Route = createFileRoute("/analises")({
   head: () => ({
@@ -113,7 +114,7 @@ function AnalysesPage() {
                       timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit",
                     }).format(new Date(entry.created_at))}
                   </time>
-                  <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-relaxed">{entry.texto}</p>
+                  <AnalysisText className="mt-2" text={entry.texto} />
                 </li>
               ))}
             </ol>

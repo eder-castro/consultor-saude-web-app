@@ -9,7 +9,7 @@
     "build:dev": "vite build --mode development",
     "start": "bun scripts/production-server.mjs",
     "preview": "vite preview",
-    "test": "python -m unittest discover -s backend -p 'test_*.py' && bun test scripts/*.test.mjs backend/*.test.mjs src/components/dashboard/*.test.mjs src/components/chat/*.test.mjs src/providers/*.test.mjs src/lib/sleep-duration.test.ts src/lib/image-preparation.test.ts src/lib/session-state.test.mjs src/lib/health-chart-format.test.mjs",
+    "test": "python -m unittest discover -s backend -p 'test_*.py' && bun test scripts/*.test.mjs backend/*.test.mjs src/components/dashboard/*.test.mjs src/components/chat/*.test.mjs src/providers/*.test.mjs src/lib/sleep-duration.test.ts src/lib/image-preparation.test.ts src/lib/session-state.test.mjs src/lib/health-chart-format.test.mjs src/lib/analysis-markdown.test.ts",
     "test:integration:sleep": "RUN_POSTGRES_INTEGRATION_TESTS=1 bun test backend/supabase_sleep_concurrency.integration.test.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."

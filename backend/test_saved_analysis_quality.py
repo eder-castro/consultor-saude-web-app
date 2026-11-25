@@ -59,6 +59,9 @@ class SavedAnalysisQualityTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(model.call_args.args[1]), len(set(model.call_args.args[1])))
         self.assertIn("não comprova estabilidade hídrica", prompt)
         self.assertIn("uma única noite", prompt)
+        self.assertIn("💡 **Insight:**", prompt)
+        self.assertIn("👉 **Próximo passo:**", prompt)
+        self.assertIn("Destaque em negrito", prompt)
 
     def test_custom_models_do_not_receive_gemini3_only_thinking_parameters(self):
         class Response:

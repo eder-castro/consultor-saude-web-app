@@ -14,6 +14,9 @@ Mudanças relevantes, agrupadas por período. Formato inspirado em
 - Configuração do Vite própria, sem `@lovable.dev/vite-tanstack-config` nem Cloudflare; o servidor
   de produção agora é gerado com o preset `bun` do Nitro.
 - `bun.lock` independente dos espelhos internos do Replit.
+- Análises da IA no estilo do GEM: blocos curtos com emoji (💡 Insight, ✅ Pontos positivos,
+  ⚠️ Atenção, 👉 Próximo passo), bullets de uma frase e valores em negrito; o chat e a página
+  de análises renderizam esse markdown simples (`AnalysisText`).
 - Validação de sessão com cache de 60 s em memória (menos chamadas ao Supabase por requisição).
 
 ### Corrigido

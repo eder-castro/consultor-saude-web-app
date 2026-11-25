@@ -7,6 +7,7 @@ import { ValidationCard } from "./ValidationCard";
 import { CorrectionCard } from "./CorrectionCard";
 import { DailyAnalysisSummaryNotice } from "./DailyAnalysisSummaryNotice";
 import { AnalysisLoading } from "./AnalysisLoading";
+import { AnalysisText } from "./AnalysisText";
 import { MessageTime } from "./MessageTime";
 import { ImagePreview } from "./ImagePreview";
 import { stageLabel } from "@/lib/analysis-progress";
@@ -254,8 +255,8 @@ function Bubble({
   if (m.kind === "text") {
     return (
       <div className="flex justify-start">
-        <div className="max-w-[92%] px-1 py-2 text-base leading-relaxed sm:max-w-[85%]">
-          {m.text}
+        <div className="max-w-[92%] px-1 py-2 sm:max-w-[85%]">
+          <AnalysisText className="text-base" text={m.text} />
         </div>
       </div>
     );
@@ -323,7 +324,7 @@ function Bubble({
               <AnalysisLoading className="mt-3" compact
                 label={stageLabel(m.analysis.stage, "Analisando o registro salvo, com o histórico como referência...")} />
             ) : m.analysis.status === "ready" ? (
-              <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">{m.analysis.text}</p>
+              <AnalysisText className="mt-2" text={m.analysis.text ?? ""} />
             ) : (
               <div className="mt-2 space-y-2">
                 <p role="alert" className="text-sm text-muted-foreground">

@@ -287,7 +287,7 @@ class InputValidationTests(unittest.IsolatedAsyncioTestCase):
             analysis = await main.generate_saved_record_analysis(context)
         self.assertIn("300 ml", analysis)
         prompt = gemini.call_args.args[0]["contents"][0]["parts"][0]["text"]
-        self.assertIn("responda em duas ou três frases", prompt)
+        self.assertIn("💧 **Hidratação:**", prompt)
         self.assertIn("Não comente peso, sono, café da manhã, almoço", prompt)
         self.assertIn("Uma ligação pertinente com outro registro", prompt)
         self.assertIn("no máximo uma frase", prompt)
